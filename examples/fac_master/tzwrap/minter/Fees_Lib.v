@@ -4,7 +4,7 @@ Require Import Types.
 Require Import ZArith.
 Require Import Monads.
 From ConCert.Execution Require Import Containers.
-From ConCert.Execution Require Import Common.
+From ConCert.Execution Require Import ContractCommon.
 
 
 Section Fees_Lib.

@@ -2,11 +2,11 @@ Require Import Ethereum_Lib.
 Require Import Storage.
 Require Import Blockchain.
 Require Import FA2InterfaceOwn.
-From ConCert.Execution Require Import FA2Interface.
+From ConCert.Examples Require Import FA2Interface.
 From ConCert.Execution Require Import Containers.
 Require Import Types.
 Require Import ZArith.
-Require Import Common.
+Require Import ContractCommon.
 
 
 Section Tokens_Lib.

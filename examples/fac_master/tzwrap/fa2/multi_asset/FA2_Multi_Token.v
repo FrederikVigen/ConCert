@@ -1,6 +1,6 @@
 Require Import ZArith.
 Require Import Blockchain.
-Require Import FA2Interface.
+From ConCert.Examples Require Import FA2Interface.
 Require Import FA2InterfaceOwn.
 Require Import Fees_Lib.
 Require Import FA2Types.

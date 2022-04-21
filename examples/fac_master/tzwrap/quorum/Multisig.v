@@ -14,7 +14,7 @@ Require Import Monads.
 Require Import RecordUpdate.
 Require Import Crypto.
 Import ListNotations.
-Require Import Common.
+Require Import ContractCommon.
 Require Import Serializable.
 Require Import Tokens_Lib.
 Require Import Permutation.

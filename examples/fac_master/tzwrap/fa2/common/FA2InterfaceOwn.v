@@ -1,6 +1,6 @@
 From Coq Require Import ZArith.
 Require Import Blockchain.
-From ConCert.Execution Require Import FA2Interface.
+From ConCert.Examples.FA2 Require Import FA2Interface.
 Require Import Types.
 Require Import Serializable.
 From ConCert.Utils Require Import RecordUpdate.

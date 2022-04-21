@@ -2,7 +2,7 @@ Require Import Tokens_Lib.
 Require Import Fees_Lib.
 Require Import Ethereum_Lib.
 From Coq Require Import ZArith.
-Require Import FA2Interface.
+From ConCert.Examples Require Import FA2Interface.
 Require Import FA2InterfaceOwn.
 Require Import Storage.
 Require Import Blockchain.

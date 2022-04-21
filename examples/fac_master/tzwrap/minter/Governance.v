@@ -4,7 +4,7 @@ Require Import Governance_Interface.
 Require Import ZArith.
 Require Import List.
 Require Import Monads.
-Require Import Common.
+Require Import ContractCommon.
 Import ListNotations.
 From ConCert.Utils Require Import RecordUpdate.
 

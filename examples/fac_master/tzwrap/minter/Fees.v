@@ -7,14 +7,14 @@ Require Import Fees_Interface.
 Require Import Serializable.
 Require Import Monads.
 From ConCert.Utils Require Import RecordUpdate.
-From ConCert.Execution Require Import FA2Interface.
+From ConCert.Examples Require Import FA2Interface.
 From ConCert.Execution Require Import Containers.
 Require Import FA2InterfaceOwn.
 Require Import Extras.
 Require Import List.
 Import ListNotations.
 From Coq Require Import ZArith.
-Require Import Common.
+Require Import ContractCommon.
 
 
 Section Fees.

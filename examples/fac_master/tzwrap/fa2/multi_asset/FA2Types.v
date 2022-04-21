@@ -2,7 +2,7 @@ Require Import FA2InterfaceOwn.
 Require Import Containers.
 Require Import ZArith.
 Require Import Blockchain.
-Require Import FA2Interface.
+From ConCert.Examples.FA2 Require Import FA2Interface.
 Require Import TokenAdmin.
 Require Import List.
 Require Import Serializable.

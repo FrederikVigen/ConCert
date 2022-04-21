@@ -8,7 +8,7 @@ Require Import ContractAdmin.
 Require Import Monads.
 Require Import RecordUpdate.
 Require Import Tokens_Lib.
-Require Import Common.
+Require Import ContractCommon.
 Require Import Governance_Interface.
 Require Import Governance.
 Require Import Oracle_Interface.
