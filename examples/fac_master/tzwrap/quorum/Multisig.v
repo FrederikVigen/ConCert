@@ -232,16 +232,17 @@ Definition multisig_receive (chain : Chain) (ctx : ContractCallContext) (state :
     do msg <- msg_opt ;
     main ctx msg state.
 
-Definition multisig_init (chain : Chain) (ctx : ContractCallContext) (admin_addr : Address) : option State :=
+Definition multisig_init (chain : Chain) (ctx : ContractCallContext) (setup : (Address * (FMap SignerId N))) : option State :=
+    let (admin_addr, signers) := setup in
     Some {| admin:=admin_addr;
             threshold:=5;
             pending_admin:=None;
             metadata:=FMap.empty;
-            signers:=FMap.empty;
+            signers:=signers;
             counters:=FMap.empty |}.
 
 (** The multisig contract *)
-Definition multisig_contract : Contract Address MultisigParameter State :=
+Definition multisig_contract : Contract (Address * (FMap SignerId N)) MultisigParameter State :=
 build_contract multisig_init multisig_receive.
 
 End Multisig.
