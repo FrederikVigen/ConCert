@@ -250,35 +250,35 @@ Section Proofs.
 
 Context {BaseTypes : ChainBase}.
 
-Lemma admin_fail_if_amount {ctx action state} :
-    Z.lt 0 ctx.(ctx_amount) -> main ctx (Admin action) state = None.
+Lemma admin_fail_if_amount {ctx chain action state} :
+    Z.lt 0 ctx.(ctx_amount) -> multisig_receive chain ctx state (Some (Admin action)) = None.
 Proof.
     intros. cbn. unfold fail_if_amount. destruct (0 <? ctx_amount ctx)%Z eqn: amount.
     - reflexivity.
     - apply Z.ltb_ge in amount. easy.
 Qed.
 
-Lemma fees_fail_if_amount {ctx fees_entrypoints state} :
-    Z.lt 0 ctx.(ctx_amount) -> main ctx (Fees fees_entrypoints) state = None.
+Lemma fees_fail_if_amount {ctx chain fees_entrypoints state} :
+    Z.lt 0 ctx.(ctx_amount) -> multisig_receive chain ctx state (Some (Fees fees_entrypoints)) = None.
 Proof.
     intros. cbn. unfold fail_if_amount. destruct (0 <? ctx_amount ctx)%Z eqn: amount.
     - reflexivity.
     - apply Z.ltb_ge in amount. easy.
 Qed.
 
-Lemma set_signer_payment_address_fail_if_amount {ctx payment_addres_parameter state} :
-    Z.lt 0 ctx.(ctx_amount) -> main ctx (Set_signer_payment_address payment_addres_parameter) state = None.
+Lemma set_signer_payment_address_fail_if_amount {ctx chain payment_addres_parameter state} :
+    Z.lt 0 ctx.(ctx_amount) -> multisig_receive chain ctx state (Some (Set_signer_payment_address payment_addres_parameter)) = None.
 Proof.
     intros. cbn. unfold fail_if_amount. destruct (0 <? ctx_amount ctx)%Z eqn: amount.
     - reflexivity.
     - apply Z.ltb_ge in amount. easy.
 Qed.
 
-Lemma admin_fail_if_not_admin {ctx action state} :
+Lemma admin_fail_if_not_admin {ctx chain action state} :
     Z.gt 0 ctx.(ctx_amount) ->
     ctx.(ctx_from) <> state.(admin) -> 
     action <> ConfirmAdmin ->
-    main ctx (Admin action) state = None.
+    multisig_receive chain ctx state (Some (Admin action)) = None.
 Proof.
     intros. cbn. unfold fail_if_amount. destruct (0 <? ctx_amount ctx)%Z.
     - auto.
@@ -294,9 +294,9 @@ Proof.
     - apply N.ltb_ge in length. easy.
 Qed.
 
-Lemma confirm_admin_correct {ctx state state'} :
+Lemma confirm_admin_correct {ctx chain state state'} :
     state.(pending_admin) = Some ctx.(ctx_from) ->
-    main ctx (Admin ConfirmAdmin) state = Some (state', []) ->
+    multisig_receive chain ctx state (Some (Admin ConfirmAdmin)) = Some (state', []) ->
     state'.(pending_admin) = None /\ state'.(admin) = ctx.(ctx_from).
 Proof.
     intro H. cbn. destruct fail_if_amount; try easy.
