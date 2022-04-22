@@ -14,7 +14,7 @@ Definition signer_ops_main (ctx : ContractCallContext) (ep : SignerOpsEntrypoint
     match ep with 
     | set_payment_address p => 
         let new_quorom := FMap.update p.(sparam_signer) (Some p.(payment_address)) s.(fees).(fees_storage_signers) in
-        Some ([], s<|fees:= s.(fees)<|fees_storage_signers := new_quorom|>|>)
+        Some (s<|fees:= s.(fees)<|fees_storage_signers := new_quorom|>|>, [])
     end.
 
 End SignerOps.

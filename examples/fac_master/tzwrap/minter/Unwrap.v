@@ -14,6 +14,7 @@ From Coq Require Import ZArith.
 
 Section Unwrap.
 Context {BaseTypes : ChainBase}.
+Set Nonrecursive Elimination Schemes.
 Open Scope N_scope.
 
 Record UnwrapERC20Parameters : Type := 
@@ -34,6 +35,15 @@ Record UnwrapERC721Parameters : Type :=
 Inductive UnwrapEntrypoints :=
     | unwrap_erc20_entrypoint (unwrap_erc20_params : UnwrapERC20Parameters)
     | unwrap_erc721_entrypoint (unwrap_erc721_params : UnwrapERC721Parameters).
+
+Global Instance UnwrapERC20Parameters_serializable : Serializable UnwrapERC20Parameters :=
+    Derive Serializable UnwrapERC20Parameters_rect<mkUnwrapERC20Parameters>.
+
+Global Instance UnwrapERC721Parameters_serializable : Serializable UnwrapERC721Parameters :=
+    Derive Serializable UnwrapERC721Parameters_rect<mkUnwrapERC721Parameters>.
+
+Global Instance UnwrapEntrypoints_serializable : Serializable UnwrapEntrypoints :=
+    Derive Serializable UnwrapEntrypoints_rect<unwrap_erc20_entrypoint, unwrap_erc721_entrypoint>.
 
 Definition unwrap_erc20 (ctx : ContractCallContext) (p : UnwrapERC20Parameters) (s : State) : option ReturnType :=
     let governance := s.(governance) in
@@ -63,7 +73,7 @@ Definition unwrap_erc20 (ctx : ContractCallContext) (p : UnwrapERC20Parameters) 
             [burn] ++ [act_call contract_address 0 (serialize (MintTokens [mintTokensParams]))]
             in
         let new_ledger := inc_token_balance fees_storage.(fees_storage_tokens) ctx.(ctx_contract_address) token_address p.(up_fees) in
-        Some (ops, {|
+        Some ({|
             admin := s.(admin);
             assets := assets;
             governance := governance;
@@ -73,7 +83,7 @@ Definition unwrap_erc20 (ctx : ContractCallContext) (p : UnwrapERC20Parameters) 
                 fees_storage_xtz := s.(fees).(fees_storage_xtz);
             |};
             storage_metadata := s.(storage_metadata)
-        |})
+        |}, ops)
     | None => None
     end.
 
@@ -93,7 +103,7 @@ Definition unwrap_erc721 (ctx : ContractCallContext) (p: UnwrapERC721Parameters)
         |} in
         let burn := act_call contract_address 0 (serialize (BurnTokens [burnTokensParams])) in
         let new_ledger := inc_xtz_balance fees_storage.(fees_storage_xtz) ctx.(ctx_contract_address) amountN in 
-        Some ([burn], {|
+        Some ({|
             admin := s.(admin);
             assets := assets;
             governance := governance;
@@ -103,7 +113,7 @@ Definition unwrap_erc721 (ctx : ContractCallContext) (p: UnwrapERC721Parameters)
                 fees_storage_xtz := new_ledger;
             |};
             storage_metadata := s.(storage_metadata)
-        |}) 
+        |}, [burn]) 
     | None => None
     end.
 

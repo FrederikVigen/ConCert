@@ -127,10 +127,10 @@ Definition distribute_xtz (ctx : ContractCallContext) (p : list N) (s : State) :
 
 Definition oracle_main (ctx : ContractCallContext) (p : OracleEntrypoint) (s : State) : option ReturnType :=
     match p with
-    | Distribute_xtz p => Some ([], s<| fees := distribute_xtz ctx p s|>)
+    | Distribute_xtz p => Some (s<| fees := distribute_xtz ctx p s|>, [])
     | Distribute_tokens p => 
         do fees_new <- distribute_tokens ctx p s ;
-        Some ([], s<| fees := fees_new |>)
+        Some (s<| fees := fees_new |>, [])
     end.
 
 End Oracle.

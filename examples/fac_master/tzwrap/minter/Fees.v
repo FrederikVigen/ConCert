@@ -95,15 +95,15 @@ Definition fees_main (ctx : ContractCallContext) (s: State) (p: WithdrawalEntryp
     match p with
     | Withdraw_all_tokens p =>
         let (ops, new_b) := generate_tokens_transfer ctx p s.(fees).(fees_storage_tokens) in
-        Some (ops, s<|fees:=s.(fees)<|fees_storage_tokens:=new_b|>|>)
+        Some (s<|fees:=s.(fees)<|fees_storage_tokens:=new_b|>|>, ops)
     | Withdraw_all_xtz =>
         do res <- withdraw_xtz ctx None s.(fees).(fees_storage_xtz) ;
-        Some (fst res, s<|fees:=s.(fees)<|fees_storage_xtz:=snd res|>|>)
+        Some (s<|fees:=s.(fees)<|fees_storage_xtz:=snd res|>|>, fst res)
     | Withdraw_token p => 
         do res <- generate_token_transfer ctx p s.(fees).(fees_storage_tokens) ;
-        Some (fst res, s<|fees:=s.(fees)<|fees_storage_tokens:=snd res|>|>)
+        Some (s<|fees:=s.(fees)<|fees_storage_tokens:=snd res|>|>, fst res)
     | Withdraw_xtz a => 
         do res <- withdraw_xtz ctx (Some a) s.(fees).(fees_storage_xtz);
-        Some (fst res, s<|fees:=s.(fees)<|fees_storage_xtz:=snd res|>|>)
+        Some (s<|fees:=s.(fees)<|fees_storage_xtz:=snd res|>|>, fst res)
     end.
 End Fees.

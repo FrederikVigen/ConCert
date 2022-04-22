@@ -67,6 +67,6 @@ MetaCoq Run (make_setters GovernanceStorage).
 MetaCoq Run (make_setters FeesStorage).
 MetaCoq Run (make_setters State).
 
-Definition ReturnType : Type := (list ActionBody * State).
+Definition ReturnType : Type := (State * list ActionBody).
 
 End Storage.

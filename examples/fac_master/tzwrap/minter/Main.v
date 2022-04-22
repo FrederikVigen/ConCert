@@ -17,6 +17,7 @@ Require Import Signer_Interface.
 Require Import Signer.
 Require Import Signer_Ops_Interface.
 Require Import SignerOps.
+Require Import Serializable.
 
 Section Main.
 
@@ -31,6 +32,9 @@ Inductive EntryPoints :=
     | Signer (signer_entrypoints : SignerEntrypoints)
     | Signer_Ops (signer_ops_entrypoints : SignerOpsEntrypoint)
 .
+
+Global Instance EntryPoints_serializable : Serializable EntryPoints :=
+    Derive Serializable EntryPoints_rect<Fees, Unwrap, ContractAdmin, Governance, Oracle, Signer, Signer_Ops>.
 
 Definition fail_if_paused (s : ContractAdminStorage) : option unit :=
     throwIf (s.(paused)).
@@ -47,12 +51,12 @@ Definition main (ctx: ContractCallContext) (p: EntryPoints) (s : State) : option
     | ContractAdmin p =>
         do _ <- fail_if_amount ctx;
         do res <- contract_admin_main ctx p s.(admin);
-        Some (fst res, s<|admin:= snd res|>)
+        Some (s<|admin:= snd res|>, fst res)
     | Governance p => 
         do _ <- fail_if_amount ctx ;
         do _ <- fail_if_not_governance ctx s.(governance) ;
         do res <- governance_main ctx p s.(governance) ;
-        Some (fst res, s<|governance := snd res|>)
+        Some (s<|governance := snd res|>, fst res)
     | Fees p => 
         do _ <- fail_if_amount ctx;
         fees_main ctx s p
@@ -65,5 +69,16 @@ Definition main (ctx: ContractCallContext) (p: EntryPoints) (s : State) : option
         do _ <- fail_if_not_signer ctx s.(admin) ; 
         signer_ops_main ctx p s
     end.
+
+Definition minter_receive (chain : Chain) (ctx : ContractCallContext) (state : State) (msg_opt : option EntryPoints) : option ReturnType :=
+    do msg <- msg_opt ;
+    main ctx msg state.
+
+Definition minter_init (chain : Chain) (ctx : ContractCallContext) (setup : Address) : option State :=
+    None.
+
+(** The minter contract *)
+Definition minter_contract : Contract Address EntryPoints State :=
+build_contract minter_init minter_receive.
 
 End Main.

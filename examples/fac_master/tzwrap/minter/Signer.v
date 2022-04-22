@@ -49,7 +49,7 @@ Definition mint_erc20 (ctx : ContractCallContext) (p : MintErc20Parameters) (s :
     else [user_mint] in
     let new_ledger := inc_token_balance fees_storage.(fees_storage_tokens) ctx.(ctx_contract_address) token_address (snd fees_) in
     let mints_new := FMap.add p.(event_id_erc20) tt assets_state.(mints) in
-    Some ([act_call (fst token_address) 0 (serialize (MintTokens fa2_txs))], s<|assets:= s.(assets)<|mints:=mints_new|>|><|fees:=s.(fees)<|fees_storage_tokens:= new_ledger|>|>).
+    Some (s<|assets:= s.(assets)<|mints:=mints_new|>|><|fees:=s.(fees)<|fees_storage_tokens:= new_ledger|>|>, [act_call (fst token_address) 0 (serialize (MintTokens fa2_txs))]).
 
 
 Definition mint_erc721 (ctx : ContractCallContext) (p : MintErc721Parameters) (s : State) : option ReturnType :=
@@ -66,7 +66,7 @@ Definition mint_erc721 (ctx : ContractCallContext) (p : MintErc721Parameters) (s
     |} in
     let new_ledger := inc_xtz_balance (fees_storage.(fees_storage_xtz)) (ctx.(ctx_contract_address)) (Z.to_N ctx.(ctx_amount)) in
     let mints_new := FMap.add p.(event_id_erc721) tt assets_state.(mints) in
-    Some ([act_call fa2_contract 0 (serialize (MintTokens [user_mint]))], s<|assets:= s.(assets)<|mints:=mints_new|>|><|fees:=s.(fees)<|fees_storage_xtz:= new_ledger|>|>).
+    Some (s<|assets:= s.(assets)<|mints:=mints_new|>|><|fees:=s.(fees)<|fees_storage_xtz:= new_ledger|>|>, [act_call fa2_contract 0 (serialize (MintTokens [user_mint]))]).
 
 Definition add_erc20 (p : AddErc20Parameters) (s : AssetsStorage) : AssetsStorage := 
   let updated_tokens := FMap.update p.(eth_contract_erc20) (Some p.(token_address)) (s.(erc20tokens)) in
@@ -83,11 +83,11 @@ Definition signer_main (ctx : ContractCallContext)(p : SignerEntrypoints) (s : S
     mint_erc20 ctx param s
   | Add_erc20 param => 
     do _ <- fail_if_amount ctx ;
-    Some ([], s<|assets:= add_erc20 param s.(assets)|>)
+    Some (s<|assets:= add_erc20 param s.(assets)|>, [])
   | Mint_erc721 param => mint_erc721 ctx param s
   | Add_erc721 param =>
     do _ <- fail_if_amount ctx ;
-    Some ([], s<|assets:= add_erc721 param s.(assets)|>)
+    Some (s<|assets:= add_erc721 param s.(assets)|>, [])
   end.
 
 Lemma mint_erc20_fail_if_amount {ctx param state} :
@@ -118,7 +118,7 @@ Lemma add_erc20_in_map {ctx param eth_addr state state' addr} :
   ctx.(ctx_amount) = 0%Z ->
   param.(eth_contract_erc20) = eth_addr ->
   param.(token_address) = addr ->
-  signer_main ctx (Add_erc20 param) state = Some ([], state') ->
+  signer_main ctx (Add_erc20 param) state = Some (state', []) ->
   FMap.find eth_addr state'.(assets).(erc20tokens) = Some addr.
 Proof.
   intros H H0 H1. cbn. unfold fail_if_amount. rewrite H. cbn. intros. inversion H2. 
@@ -129,7 +129,7 @@ Lemma add_erc721_in_map {ctx param eth_addr state state' cont} :
   ctx.(ctx_amount) = 0%Z ->
   param.(eth_contract_erc721) = eth_addr ->
   param.(token_contract) = cont ->
-  signer_main ctx (Add_erc721 param) state = Some ([], state') ->
+  signer_main ctx (Add_erc721 param) state = Some (state', []) ->
   FMap.find eth_addr state'.(assets).(erc721tokens) = Some cont.
 Proof.
   intros H H0 H1. cbn. unfold fail_if_amount. rewrite H. cbn. intros. inversion H2. 
