@@ -80,7 +80,7 @@ Section PiggyBank.
   Global Instance Msg_serializable : Serializable Msg :=
     Derive Serializable Msg_rect<Insert, Smash>.
 
-  (** The counter contract *)
+  (** The piggybank contract *)
   Definition piggyBank_contract : Contract Amount Msg State :=
     build_contract piggyBank_init piggyBank_receive.
 
@@ -139,7 +139,7 @@ Section SafetyProperties.
   Lemma if_intact_balance_only_increasing {prev_state next_state chain ctx new_acts}:
     prev_state.(piggyState) = Intact ->
     piggyBank_receive chain ctx prev_state (Some Insert) = Some (next_state, new_acts) ->
-    prev_state.(balance) <= next_state.(balance).
+    prev_state.(balance) < next_state.(balance).
   Proof.
     intros H H1. destruct prev_state. cbn in *. rewrite H in H1. destruct (0 <? ctx_amount ctx) eqn:E; try easy.
     inversion H1. cbn in *. apply Z.ltb_lt in E; omega.

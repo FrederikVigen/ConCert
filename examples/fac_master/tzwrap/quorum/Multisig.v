@@ -39,6 +39,9 @@ Record State : Type :=
             metadata : Metadata ; 
             counters : FMap SignerId nat}.
 
+Global Instance State_serializable : Serializable State :=
+    Derive Serializable State_rect<mkState>.
+
 MetaCoq Run (make_setters State).
 
 Record ContractInvocation : Type := 
@@ -62,6 +65,9 @@ Inductive AdminAction : Type :=
 | ChangeThreshold (n : N)
 | SetAdmin (addr : Address)
 | ConfirmAdmin.
+
+Global Instance AdminAction_serializable : Serializable AdminAction :=
+    Derive Serializable AdminAction_rect<ChangeQuorum, ChangeThreshold, SetAdmin, ConfirmAdmin>.
 
 Definition T1 : Type := (N * Address).
 
@@ -147,13 +153,25 @@ Inductive FeesEntrypoints : Type :=
 | Distribute_tokens_with_quorum (param : DistributeTokensParameter)
 | Distribute_xtz_with_quorum (addr : Address).
 
+Global Instance PaymentAddressParameter_serializable : Serializable PaymentAddressParameter :=
+Derive Serializable PaymentAddressParameter_rect<mkPaymentAddressParameter>.
+
+Global Instance DistributeTokensParameter_serializable : Serializable DistributeTokensParameter :=
+Derive Serializable DistributeTokensParameter_rect<mkDistributeTokensParameter>.
+
+Global Instance FeesEntrypoints_serializable : Serializable FeesEntrypoints :=
+Derive Serializable FeesEntrypoints_rect<Distribute_tokens_with_quorum, Distribute_xtz_with_quorum>.
+
 Inductive MultisigParameter : Type :=
 | Admin (admin_action : AdminAction)
 | Minter (signer_action : SignerAction)
 | Fees (fees_entrypoints : FeesEntrypoints)
 | Set_signer_payment_address (payment_addres_parameter : PaymentAddressParameter).
 
-Definition Return : Type := list ActionBody * State.
+Global Instance MultisigParameter_serializable : Serializable MultisigParameter :=
+Derive Serializable MultisigParameter_rect<Admin, Minter, Fees, Set_signer_payment_address>.
+
+Definition Return : Type := State * list ActionBody.
 
 Definition signers_key_hash (s : State) : list N :=
     fin_maps.map_fold 
@@ -175,7 +193,7 @@ Definition set_payment_address (ctx : ContractCallContext) (p : PaymentAddressPa
     if Crypto.check_signature k p.(pap_signature) payload
     then
         let call := serialize (set_payment_address {| sparam_signer := Crypto.hash_key k; payment_address := ctx.(ctx_from) |}) in
-        Some ([act_call p.(pap_minter_contract) 0 call], s<|signers:= FMap.update p.(pap_signer_id) (Some (signer_counter + 1)) s.(signers) |>)
+        Some (s<|signers:= FMap.update p.(pap_signer_id) (Some (signer_counter + 1)) s.(signers) |>, [act_call p.(pap_minter_contract) 0 call])
     else
         None.
 
@@ -185,12 +203,12 @@ Definition fees_main (p : FeesEntrypoints) (s : State) : option Return :=
         let keys := signers_key_hash s in
         let target := param.(dtp_minter_contract) in
         let call := serialize (Distribute_tokens {|dp_signers := keys; dp_tokens := param.(dtp_tokens)|}) in
-        Some ([act_call target 0 call], s)
+        Some (s, [act_call target 0 call])
     | Distribute_xtz_with_quorum addr =>    
         let keys := signers_key_hash s in
         let target := addr in
         let call := serialize (Distribute_xtz keys) in
-        Some ([act_call target 0 call], s)
+        Some (s, [act_call target 0 call])
     end.
 
 Definition main (ctx : ContractCallContext) (p : MultisigParameter) (s : State) : option Return :=
@@ -198,10 +216,10 @@ Definition main (ctx : ContractCallContext) (p : MultisigParameter) (s : State) 
     | Admin action =>
         do _ <- fail_if_amount ctx;
         do res <- apply_admin ctx action s;
-        Some ([], res)
+        Some (res, [])
     | Minter signer_action => 
         do res <- apply_minter ctx signer_action s;
-        Some (res, s)
+        Some (s, res)
     | Fees fees_entrypoints =>
         do _ <- fail_if_amount ctx;
         fees_main fees_entrypoints s
@@ -209,6 +227,28 @@ Definition main (ctx : ContractCallContext) (p : MultisigParameter) (s : State) 
         do _ <- fail_if_amount ctx;
         set_payment_address ctx payment_addres_parameter s
     end.
+
+Definition multisig_receive (chain : Chain) (ctx : ContractCallContext) (state : State) (msg_opt : option MultisigParameter) : option Return :=
+    do msg <- msg_opt ;
+    main ctx msg state.
+
+Definition multisig_init (chain : Chain) (ctx : ContractCallContext) (admin_addr : Address) : option State :=
+    Some {| admin:=admin_addr;
+            threshold:=5;
+            pending_admin:=None;
+            metadata:=FMap.empty;
+            signers:=FMap.empty;
+            counters:=FMap.empty |}.
+
+(** The multisig contract *)
+Definition multisig_contract : Contract Address MultisigParameter State :=
+build_contract multisig_init multisig_receive.
+
+End Multisig.
+
+Section Proofs.
+
+Context {BaseTypes : ChainBase}.
 
 Lemma admin_fail_if_amount {ctx action state} :
     Z.lt 0 ctx.(ctx_amount) -> main ctx (Admin action) state = None.
@@ -256,7 +296,7 @@ Qed.
 
 Lemma confirm_admin_correct {ctx state state'} :
     state.(pending_admin) = Some ctx.(ctx_from) ->
-    main ctx (Admin ConfirmAdmin) state = Some ([], state') ->
+    main ctx (Admin ConfirmAdmin) state = Some (state', []) ->
     state'.(pending_admin) = None /\ state'.(admin) = ctx.(ctx_from).
 Proof.
     intro H. cbn. destruct fail_if_amount; try easy.
@@ -312,4 +352,4 @@ Proof.
         
 
 
-End Multisig.
+End Proofs.
