@@ -1,5 +1,6 @@
 From Coq Require Import Cyclic31.
 From Coq Require Import String.
+Require Import Containers.
 
 Require Import Blockchain.
 
@@ -8,7 +9,7 @@ Context {BaseTypes : ChainBase}.
 
 Definition bps := N.
 
-Definition MetaData := string -> positive.
+Definition MetaData := FMap string positive.
 
 Definition TokenAddress : Type := (Address * N).
 

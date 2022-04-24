@@ -2,6 +2,7 @@ Require Import Storage.
 Require Import Blockchain.
 Require Import List.
 Require Import Automation.
+Require Import Serializable.
 From ConCert.Execution Require Import Monads.
 Import ListNotations.
 From ConCert.Utils Require Import RecordUpdate.
@@ -15,6 +16,9 @@ Inductive ContractAdminEntrypoints :=
     | SetOracle (addr : Address)
     | SetSigner (addr : Address)
     | PauseContract (pause : bool).
+
+Global Instance ContractAdminEntrypoints_serializable : Serializable ContractAdminEntrypoints :=
+    Derive Serializable ContractAdminEntrypoints_rect<SetAdministrator, ConfirmMinterAdmin, SetOracle, SetSigner, PauseContract>.
 
 Definition ContractAdminReturnType : Type := (list ActionBody * ContractAdminStorage).
 

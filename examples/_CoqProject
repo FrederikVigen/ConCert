@@ -116,6 +116,9 @@ crowdfunding/CrowdfundingCertifiedExtraction.v
 -R fac_master/piggybank Concert.Examples.piggybank
 fac_master/piggybank/PiggyBank.v
 
+-R fac_master/tzwrap/crypto Concert.Examples.Tzwrap.crypto
+fac_master/tzwrap/crypto/Crypto.v
+
 -R fac_master/tzwrap/fa2 Concert.Examples.Tzwrap.fa2
 fac_master/tzwrap/fa2/common/FA2InterfaceOwn.v
 fac_master/tzwrap/fa2/common/lib/FA2_Operator_Lib.v
@@ -149,6 +152,3 @@ fac_master/tzwrap/minter/Views.v
 
 -R fac_master/tzwrap/quorum Concert.Examples.Tzwrap.quorum
 fac_master/tzwrap/quorum/Multisig.v
-
--R fac_master/tzwrap/crypto Concert.Examples.Tzwrap.crypto
-fac_master/tzwrap/crypto/Crypto.v

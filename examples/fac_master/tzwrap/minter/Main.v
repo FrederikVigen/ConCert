@@ -2,7 +2,6 @@ Require Import Storage.
 Require Import Fees.
 Require Import Fees_Interface.
 Require Import Blockchain.
-Require Import Storage.
 Require Import Unwrap.
 Require Import ContractAdmin.
 Require Import Monads.
@@ -22,6 +21,7 @@ Require Import Serializable.
 Section Main.
 
 Context {BaseTypes : ChainBase}.
+Set Nonrecursive Elimination Schemes.
 
 Inductive EntryPoints :=
     | Fees (fees_entrypoints : WithdrawalEntrypoint)
