@@ -25,6 +25,12 @@ Inductive update_operator_own :=
   | add_operator : operator_param_own -> update_operator_own
   | remove_operator : operator_param_own -> update_operator_own.
 
+Global Instance operator_param_own_serializable : Serializable operator_param_own :=
+Derive Serializable operator_param_own_rect<Build_operator_param_own>.
+
+Global Instance update_operator_own_serializable : Serializable update_operator_own :=
+Derive Serializable update_operator_own_rect<add_operator, remove_operator>.
+
 Record TransferDestination := mkTransferDestination {
     to_ : Address;
     dst_token_id : N;
@@ -97,8 +103,14 @@ Inductive FA2EntryPoints :=
 | Balance_of (balanceOf : balance_of_param)
 | Update_operators (updates : list update_operator_own).
 
+Global Instance FA2EntryPoints_serializable : Serializable FA2EntryPoints :=
+Derive Serializable FA2EntryPoints_rect<FA2_Transfer, Balance_of, Update_operators>.
+
 Inductive MultiTokenAdmin := 
 | Token_admin (tokenAdmin : TokenAdmin)
 | Create_token (tokenMetaData : TokenMetadata).
+
+Global Instance MultiTokenAdmin_serializable : Serializable MultiTokenAdmin :=
+Derive Serializable MultiTokenAdmin_rect<Token_admin, Create_token>.
 
 End FA2InterfaceOwn.

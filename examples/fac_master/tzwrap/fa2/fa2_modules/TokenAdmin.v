@@ -6,19 +6,24 @@ Require Import RecordUpdate.
 Require Import List.
 Require Import Monads.
 Import ListNotations.
+Require Import Serializable.
 
 Section TokenAdmin.
-
+Set Nonrecursive Elimination Schemes.
 Context {BaseTypes : ChainBase}.
 
 Definition PausedTokensSet : Type := FMap N unit.
 
-Record TokenAdminStorage := mkTokenAdminStorage {
+Record TokenAdminStorage := {
     tas_admin : Address ;
     tas_pending_admin : option Address ;
     tas_paused : PausedTokensSet ;
     tas_minter : Address
 }.
+
+Global Instance TokenAdminStorage_serializable : Serializable TokenAdminStorage :=
+Derive Serializable TokenAdminStorage_rect<Build_TokenAdminStorage>.
+
 
 MetaCoq Run (make_setters TokenAdminStorage).
 
