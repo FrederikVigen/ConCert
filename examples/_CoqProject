@@ -126,7 +126,8 @@ fac_master/tzwrap/fa2/common/FA2_Permissions_Descriptor.v
 fac_master/tzwrap/fa2/fa2_modules/TokenAdmin.v
 fac_master/tzwrap/fa2/multi_asset/FA2Types.v
 fac_master/tzwrap/fa2/multi_asset/FA2_Multi_Token.v
-fac_master/tzwrap/fa2//multi_asset/MultiTokenAdmin.v
+fac_master/tzwrap/fa2/multi_asset/MultiTokenAdmin.v
+fac_master/tzwrap/fa2/multi_asset/FA2_Multi_Asset.v
 
 -R fac_master/tzwrap/minter Concert.Examples.Tzwrap.Minter
 fac_master/tzwrap/minter/Storage.v

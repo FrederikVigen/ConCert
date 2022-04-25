@@ -34,7 +34,7 @@ Record MultiAssetStorage :=
         metadata : ContractMetadata
     }.
 
-Definition Return: Type := ((list ActionBody) * MultiAssetStorage).
+Definition Return: Type := (MultiAssetStorage * (list ActionBody)).
 
 MetaCoq Run (make_setters MultiTokenStorage).
 MetaCoq Run (make_setters MultiAssetStorage).

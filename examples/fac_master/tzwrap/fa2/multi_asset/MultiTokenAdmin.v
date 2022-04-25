@@ -30,10 +30,10 @@ Definition multi_token_admin_main (ctx : ContractCallContext) (p : MultiTokenAdm
     | Token_admin p =>
         do tpl <- token_admin ctx p s.(admin) ;
         let new_s := s<|admin:= (snd tpl) |> in
-        Some (fst tpl, new_s)
+        Some (new_s, fst tpl)
     | Create_token p =>
         do res <- create_token p s.(assets) ;
-        Some ([], s<|assets:= res |>)
+        Some (s<|assets:= res |>, [])
     end.
 
 End MultiTokenAdmin. 
