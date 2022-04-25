@@ -4,6 +4,9 @@ Require Import RecordUpdate.
 Require Import FA2Types.
 Require Import MultiTokenAdmin.
 Require Import TokenAdmin.
+Require Import FA2_Multi_Token.
+Require Import Token_Manager.
+Require Import Monads.
 
 
 Section FA2_Multi_Asset.
@@ -14,19 +17,19 @@ Inductive MultiAssetParam :=
 | Admin (param : MultiTokenAdmin)
 | Tokens (param : TokenManager).
 
-Definition main (param : MultiAssetParam) (s : MultiAssetStorage) : option Return :=
+Definition main (ctx : ContractCallContext) (param : MultiAssetParam) (s : MultiAssetStorage) : option Return :=
     match param with
-    | Admin p => multi_token_admin_main p s
+    | Admin p => multi_token_admin_main ctx p s
     | Tokens p =>
-        let u1 := fail_if_not_minter s.(admin) in
-        let (ops, assets) := token_manager p s.(assets) in
-        let new_s := s<| assets:=assets |> in
-        (new_s, ops)
-    | Assets =>
-        let u2 := fail_if_paused s.(admin) p in
-        let (ops, assets) := fa2_main p s.(assets) in
-        let new_s := s<| assets := assets |> in
-        (new_s, ops)
+        do _ <- fail_if_not_minter ctx s.(admin) ;
+        do tpl <- token_manager p s.(assets) ;
+        let new_s := s<| assets:= fst tpl |> in
+        Some (new_s, snd tpl)
+    | Assets p =>
+        do _ <- fail_if_paused s.(admin) p ;
+        do tpl <- fa2_main ctx p s.(assets) ;
+        let new_s := s<| assets := fst tpl |> in
+        Some (new_s, snd tpl)
     end.
 
 End FA2_Multi_Asset.

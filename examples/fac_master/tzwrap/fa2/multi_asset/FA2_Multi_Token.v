@@ -65,18 +65,18 @@ Definition get_balance (p : balance_of_param) (ledger : Ledger) (tokens : TokenM
   do responses <- responses_opt ;
   Some (act_call p.(bal_callback) 0 (serialize responses)).
 
-Definition fa2_main (ctx : ContractCallContext) (param : FA2EntryPoints) (storage : MultiTokenStorage) : option ((list ActionBody) * MultiTokenStorage) :=
+Definition fa2_main (ctx : ContractCallContext) (param : FA2EntryPoints) (storage : MultiTokenStorage) : option (MultiTokenStorage * (list ActionBody)) :=
   match param with 
   | FA2_Transfer txs => 
     do new_ledger <- transfer ctx txs default_operator_validator storage ;
     let new_storage := storage<|ledger := new_ledger|> in
-    Some ([], new_storage)
+    Some (new_storage, [])
   | Balance_of p => 
     do op <- get_balance p storage.(ledger) storage.(token_metadata) ;
-    Some ([op], storage)
+    Some (storage, [op])
   | Update_operators updates =>
     do new_ops <- fa2_update_operators ctx updates storage.(operators) ;
-    Some ([], storage)
+    Some (storage, [])
   end.
     
 End FA2_Multi_Token.
