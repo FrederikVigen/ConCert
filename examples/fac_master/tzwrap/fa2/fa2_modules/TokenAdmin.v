@@ -68,8 +68,10 @@ Definition fail_if_paused_tokens (transfers : list Transfer) (paused : PausedTok
         do _ <- acc_opt ;
         fold_right (fun (txd : TransferDestination) (acc_opt_inner : option unit) =>
             do _ <- acc_opt_inner ;
-            do _ <- FMap.find txd.(dst_token_id) paused ;
-            Some tt 
+            match FMap.find txd.(dst_token_id) paused with
+            | Some _ => None
+            | None => Some tt
+            end
         ) (Some tt) tx.(txs)
     ) (Some tt) transfers. 
 
