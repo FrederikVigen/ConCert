@@ -38,9 +38,9 @@ Definition dec_balance (owner: Address) (token_id : token_id) (amt : N) (ledger 
     let key := (owner, token_id) in
     let bal := get_balance_amt key ledger in
     do new_bal <- sub bal  amt ;
-     if new_bal =? 0
-    then Some (FMap.remove key ledger)
-    else Some (FMap.update key (Some new_bal) ledger).
+     Some (if new_bal =? 0
+    then FMap.remove key ledger
+    else FMap.update key (Some new_bal) ledger).
 
 Definition transfer (ctx : ContractCallContext) (transfers : list Transfer) (validate_op : OperatorValidator) (storage : MultiTokenStorage) : option Ledger :=
   let make_transfer := fun (tx : Transfer) (l_opt : option Ledger) =>
