@@ -17,6 +17,7 @@ Require Import Serializable.
 Require Import FA2_Operator_Lib.
 Require Import FSets.
 Require Import FMapList.
+Require Import Psatz.
 Import ListNotations.
 
 
@@ -153,10 +154,34 @@ Proof.
                     -- cbn. setoid_rewrite FMap.find_add. setoid_rewrite E1. assumption.
 Qed.
 
-
-            
-
-
-            
+Lemma transfer_to_self_changes_nothing {chain ctx prev_state next_state acts fromAddr toAddr amount token_id} :
+    fromAddr = toAddr ->
+    fa2_receive chain ctx prev_state (Some (Assets (FA2_Transfer [{|
+        from_ := fromAddr ;
+        txs := [{|
+            to_ := toAddr ;
+            dst_token_id := token_id ;
+            amount := amount
+        |}]
+    |}]))) = Some (next_state, acts) ->
+    get_balance_amt (fromAddr, token_id) next_state.(assets).(ledger) = get_balance_amt (fromAddr, token_id) prev_state.(assets).(ledger).
+Proof.
+    intros. contract_simpl fa2_receive fa2_init. unfold get_balance_amt. destruct (FMap.find (toAddr, token_id) (ledger (assets prev_state))) eqn: E;
+    do 2 setoid_rewrite E.
+    - unfold get_balance_amt in H3. setoid_rewrite E in H3. destruct (n-amount) eqn: E2; cbn.
+        + unfold inc_balance. unfold get_balance_amt. setoid_rewrite FMap.find_remove. setoid_rewrite FMap.find_remove.
+            cbn. destruct (0+amount) eqn: E3; cbn.
+            * setoid_rewrite FMap.find_remove. rewrite <- E2 in E3. easy.
+            * setoid_rewrite FMap.find_add. apply N.ltb_ge in H3. destruct n; easy.
+        + unfold inc_balance. unfold get_balance_amt. setoid_rewrite FMap.find_add.
+            setoid_rewrite FMap.find_add. destruct (N.pos p + amount) eqn: E3; cbn.
+            * setoid_rewrite FMap.find_remove. easy.
+            * setoid_rewrite FMap.find_add. easy.
+    - unfold inc_balance. cbn. unfold get_balance_amt. setoid_rewrite FMap.find_remove. setoid_rewrite FMap.find_remove.
+        destruct (0 + amount) eqn: E2; cbn.
+        + setoid_rewrite FMap.find_remove; easy.
+        + setoid_rewrite FMap.find_add. unfold get_balance_amt in H3. setoid_rewrite E in H3. 
+            apply N.ltb_ge in H3. easy.
+Qed.
     
 End FA2_Multi_Asset.
