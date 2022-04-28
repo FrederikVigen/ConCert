@@ -10,11 +10,14 @@ Require Import FA2_Operator_Lib.
 Require Import List.
 Require Import Serializable.
 Require Import RecordUpdate.
+Require Import ContractCommon.
 Import ListNotations.
 
 Section FA2_Multi_Token.
 
 Context {BaseTypes : ChainBase}.
+
+Open Scope N_scope.
 
 Definition get_balance_amt (key : (Address * N)) (ledger : Ledger) : N :=
     let bal_opt := FMap.find key ledger in

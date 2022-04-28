@@ -9,6 +9,7 @@ Require Import Fees_Lib.
 Require Import Monads.
 Require Import RecordUpdate.
 Require Import Storage.
+Require Import ContractCommon.
 Import ListNotations.
 
 Section Oracle.

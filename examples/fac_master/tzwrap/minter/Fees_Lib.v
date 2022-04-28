@@ -12,9 +12,6 @@ Context {BaseTypes : ChainBase}.
 
 Open Scope N_scope.
 
-Definition maybe (n : N) : option N := if n =? 0 then None else Some n.
-
-
 Definition bps_of (val : N) (bps : bps) : N :=
     val * bps / 10000.
 

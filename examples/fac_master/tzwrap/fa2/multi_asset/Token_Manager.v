@@ -8,6 +8,7 @@ Require Import Containers.
 Require Import ZArith.
 Require Import RecordUpdate.
 Require Import Fees_Lib.
+Require Import ContractCommon.
 Import ListNotations.
 
 Section Token_Manager.
