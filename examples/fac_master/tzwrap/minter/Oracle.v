@@ -66,10 +66,8 @@ Definition token_for_share (ctx : ContractCallContext) (shares : list share_per_
             ) in
         
         let (distributed, new_distribution) := fold_right apply (0, ledger) shares in
-        match maybe (total - distributed) with
-        | None => None (* DISTRIBUTION_FAILED *)
-        | Some v => Some (FMap.update (ctx.(ctx_contract_address), token_address) (Some v) new_distribution)
-        end.
+        do v <- sub total distributed ;
+        Some (FMap.update (ctx.(ctx_contract_address), token_address) (Some v) new_distribution).
         
 Definition tokens_for_share (ctx : ContractCallContext) (s : list share_per_address) (tokens : list TokenAddress) (ledger : TokenLedger) : option TokenLedger :=
     fold_right

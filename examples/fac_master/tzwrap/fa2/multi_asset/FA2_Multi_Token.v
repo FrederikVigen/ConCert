@@ -37,7 +37,7 @@ Definition inc_balance (owner: Address) (token_id : token_id) (amt : N) (ledger 
 Definition dec_balance (owner: Address) (token_id : token_id) (amt : N) (ledger : Ledger) : option Ledger :=
     let key := (owner, token_id) in
     let bal := get_balance_amt key ledger in
-    do new_bal <- maybe (bal - amt) ;
+    do new_bal <- sub bal  amt ;
      if new_bal =? 0
     then Some (FMap.remove key ledger)
     else Some (FMap.update key (Some new_bal) ledger).

@@ -48,7 +48,7 @@ Definition burn_update_total_supply (txs : list MintBurnTx) (total_supplies : To
     let update := fun (tx: MintBurnTx) (supplies_opt : option TokenTotalSupply) =>
         do supplies <- supplies_opt ;    
         do ts <- FMap.find tx.(mint_burn_token_id) supplies ;
-        do new_s <- maybe (ts - tx.(mint_burn_amount)) ;
+        do new_s <- sub ts tx.(mint_burn_amount) ;
         Some (FMap.update tx.(mint_burn_token_id) (Some new_s) supplies)
     in
     fold_right update (Some total_supplies) txs.

@@ -76,7 +76,7 @@ Definition generate_tokens_transfer (ctx: ContractCallContext) (p : WithdrawToke
 Definition generate_token_transfer (ctx : ContractCallContext) (p : WithdrawTokenParam) (ledger: TokenLedger) : option (list ActionBody * TokenLedger) :=
     let key := (p.(fa2_token), p.(wtp_token_id)) in
     let available := token_balance ledger ctx.(ctx_from) key in
-    do n <- maybe (available - p.(wtp_amount));
+    do n <- sub available p.(wtp_amount);
     let destination : TransferDestination := {|
         to_ := ctx.(ctx_from);
         dst_token_id := p.(wtp_token_id);

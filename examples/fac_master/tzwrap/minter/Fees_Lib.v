@@ -12,12 +12,14 @@ Context {BaseTypes : ChainBase}.
 
 Open Scope N_scope.
 
+Definition sub (n m : N) : option N := do _ <- throwIf (n <? m) ; Some (n - m).
+
 Definition bps_of (val : N) (bps : bps) : N :=
     val * bps / 10000.
 
 Definition compute_fees (val : N) (bps : bps) : option (N * N) :=
     let fees := bps_of val bps in
-    do amount_to_mint <- maybe (val - fees);
+    do amount_to_mint <- sub val fees;
     Some (amount_to_mint, fees).
 
 Definition token_balance (ledger : TokenLedger) (target : Address) (token : TokenAddress) : N :=

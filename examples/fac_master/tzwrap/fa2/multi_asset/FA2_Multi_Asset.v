@@ -86,6 +86,7 @@ Qed.
 
 (**Check if transfer actually moves assets from one user to another**)
 Lemma transfer_is_functionally_correct {chain ctx prev_state next_state acts fromAddr toAddr amount token_id} :
+    amount < get_balance_amt (fromAddr, token_id) prev_state.(assets).(ledger) ->
     fa2_receive chain ctx prev_state (Some (Assets (FA2_Transfer [{|
         from_ := fromAddr ;
         txs := [{|
@@ -97,7 +98,11 @@ Lemma transfer_is_functionally_correct {chain ctx prev_state next_state acts fro
     get_balance_amt (fromAddr, token_id) next_state.(assets).(ledger) = get_balance_amt (fromAddr, token_id) prev_state.(assets).(ledger) - amount /\
     get_balance_amt (toAddr, token_id) next_state.(assets).(ledger) = get_balance_amt (toAddr, token_id) prev_state.(assets).(ledger) + amount.
 Proof.
-    intros. contract_simpl fa2_receive fa2_init.
+    intros. contract_simpl fa2_receive fa2_init. unfold get_balance_amt.
+    unfold inc_balance. unfold get_balance_amt in H. unfold get_balance_amt. cbn.
+    unfold get_balance_amt in H0. Admitted.
+
+
             
     
 End FA2_Multi_Asset.
