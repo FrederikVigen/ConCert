@@ -81,13 +81,8 @@ Lemma transfer_preserves_total_supply {prev_state next_state acts chain ctx tran
     fa2_receive chain ctx prev_state (Some (Assets (FA2_Transfer transfers))) = Some (next_state, acts) ->
     prev_state.(assets).(token_total_supply) = next_state.(assets).(token_total_supply).
 Proof.
-    intros. unfold fa2_receive in H. cbn in H. destruct (fail_if_paused_tokens transfers (tas_paused (admin prev_state))).
-        - destruct (transfer ctx transfers default_operator_validator (assets prev_state)). 
-            + cbn in H. inversion H. cbn. reflexivity.
-            + inversion H.
-        - inversion H.
+    intros. contract_simpl fa2_receive fa2_init. reflexivity.
 Qed.
-
 
 (**Check if transfer actually moves assets from one user to another**)
 Lemma transfer_is_functionally_correct {chain ctx prev_state next_state acts fromAddr toAddr amount token_id} :
