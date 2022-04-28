@@ -45,7 +45,7 @@ Definition transfer (ctx : ContractCallContext) (transfers : list Transfer) (val
     fold_right (fun (dst : TransferDestination) (ll_opt : option Ledger) =>
       do ll <- ll_opt ;
       do _ <- FMap.find dst.(dst_token_id) storage.(token_metadata) ;
-      let u := validate_op tx.(from_) ctx.(ctx_from) dst.(dst_token_id) storage.(operators) in
+      do _ <- validate_op tx.(from_) ctx.(ctx_from) dst.(dst_token_id) storage.(operators) ;
       do lll <- dec_balance tx.(from_) dst.(dst_token_id) dst.(amount) ll ;
       Some (inc_balance dst.(to_) dst.(dst_token_id) dst.(amount) lll)
     ) (Some l) tx.(txs)

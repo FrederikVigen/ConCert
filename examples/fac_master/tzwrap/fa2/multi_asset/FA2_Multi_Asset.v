@@ -1,6 +1,7 @@
 Require Import Blockchain.
 Require Import FA2InterfaceOwn.
 Require Import RecordUpdate.
+Require Import ContractCommon.
 Require Import FA2Types.
 Require Import MultiTokenAdmin.
 Require Import TokenAdmin.
@@ -11,7 +12,10 @@ Require Import ZArith.
 Require Import Containers.
 Require Import String.
 Require Import List.
+Require Import Fees_Lib.
 Require Import Serializable.
+Require Import FA2_Operator_Lib.
+Import ListNotations.
 
 
 Section FA2_Multi_Asset.
@@ -72,43 +76,33 @@ Definition fa2_init (chain : Chain) (ctx: ContractCallContext) (setup: ((Address
 Definition FA2_contract : Contract ((Address * Address) * ((list TokenMetadata) * N)) MultiAssetParam MultiAssetStorage :=
     build_contract fa2_init fa2_receive.
 
-(** If token_id is not paused fail_if_paused is Some **)
-(* Lemma token_id_is_not_paused {transfers transfer tx pausedTokenSet} :
-    ~ In tx transfer.(txs) ->
-    In transfer transfers ->
-    FMap.find tx.(dst_token_id) pausedTokenSet = None -> 
-    fail_if_paused_tokens transfers pausedTokenSet = Some tt.
-Proof.
-    intros. unfold fail_if_paused_tokens. cbn. apply In_split in H1. destruct H1. destruct H1. rewrite H1.
-    apply In_split in H0. destruct H0. *)
-
-(** If token_id is not paused fail_if_paused is Some **)
-Lemma token_id_is_not_paused_inner : forall (txs : list TransferDestination) (pausedTokenSet: PausedTokensSet),
-    forall txd', 
-    (In txd' txs /\ FMap.find txd'.(dst_token_id) pausedTokenSet = None) ->
-    fold_right 
-    (fun (txd : TransferDestination) (acc_opt_inner : option unit) =>
-    match acc_opt_inner with 
-    | None => None
-    | Some _ => 
-        match FMap.find txd.(dst_token_id) pausedTokenSet with
-        | Some _ => None
-        | None => Some tt
-        end
-    end)
-    (Some tt) txs = Some tt.
-Proof.
-    intros. induction txs.
-    - try easy.
-    - unfold fold_right.
-
-    
 (** Checks if the total supply stays the same after transfer **)
 Lemma transfer_preserves_total_supply {prev_state next_state acts chain ctx transfers} :
     fa2_receive chain ctx prev_state (Some (Assets (FA2_Transfer transfers))) = Some (next_state, acts) ->
     prev_state.(assets).(token_total_supply) = next_state.(assets).(token_total_supply).
 Proof.
-    unfold fa2_receive. cbn.
-    admit.
+    intros. unfold fa2_receive in H. cbn in H. destruct (fail_if_paused_tokens transfers (tas_paused (admin prev_state))).
+        - destruct (transfer ctx transfers default_operator_validator (assets prev_state)). 
+            + cbn in H. inversion H. cbn. reflexivity.
+            + inversion H.
+        - inversion H.
+Qed.
 
+
+(**Check if transfer actually moves assets from one user to another**)
+Lemma transfer_is_functionally_correct {chain ctx prev_state next_state acts fromAddr toAddr amount token_id} :
+    fa2_receive chain ctx prev_state (Some (Assets (FA2_Transfer [{|
+        from_ := fromAddr ;
+        txs := [{|
+            to_ := toAddr ;
+            dst_token_id := token_id ;
+            amount := amount
+        |}]
+    |}]))) = Some (next_state, acts) ->
+    get_balance_amt (fromAddr, token_id) next_state.(assets).(ledger) = get_balance_amt (fromAddr, token_id) prev_state.(assets).(ledger) - amount /\
+    get_balance_amt (toAddr, token_id) next_state.(assets).(ledger) = get_balance_amt (toAddr, token_id) prev_state.(assets).(ledger) + amount.
+Proof.
+    intros. contract_simpl fa2_receive fa2_init.
+            
+    
 End FA2_Multi_Asset.
