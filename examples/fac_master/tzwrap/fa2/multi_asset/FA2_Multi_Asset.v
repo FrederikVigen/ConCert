@@ -110,12 +110,51 @@ Lemma transfer_is_functionally_correct {chain ctx prev_state next_state acts fro
     get_balance_amt (toAddr, token_id) next_state.(assets).(ledger) = get_balance_amt (toAddr, token_id) prev_state.(assets).(ledger) + amount.
 Proof.
     intros. contract_simpl fa2_receive fa2_init. split.
-        - unfold get_balance_amt. unfold get_balance_amt in H3. 
-            + destruct (FMap.find (fromAddr, token_id) (ledger (assets prev_state))) eqn: E.
+        - unfold get_balance_amt. 
+            destruct (FMap.find (fromAddr, token_id) (ledger (assets prev_state))) eqn: E.
                 * setoid_rewrite E. setoid_rewrite E. destruct (n-amount).
-                    -- cbn. assert (FMap.find (fromAddr, token_id)
-                    (inc_balance toAddr token_id amount
-                       (FMap.remove (fromAddr, token_id) (ledger (assets prev_state)))) = FMap.find (fromAddr, token_id) ledger). apply inc_balance_only_updates_own. unfold inc_balance. cbn.
+                    -- cbn. rewrite <- inc_balance_only_updates_own; try easy. setoid_rewrite FMap.find_remove. easy.
+                    -- cbn. rewrite <- inc_balance_only_updates_own; try easy. setoid_rewrite FMap.find_add. easy.
+                * setoid_rewrite E. setoid_rewrite E. cbn. rewrite <- inc_balance_only_updates_own; try easy.
+                setoid_rewrite FMap.find_remove. easy.
+        - unfold get_balance_amt. destruct (FMap.find (fromAddr, token_id) (ledger (assets prev_state))) eqn: E;
+            do 2 setoid_rewrite E.
+            + destruct (n-amount).
+                * unfold inc_balance. cbn. destruct (FMap.find (toAddr, token_id) (ledger (assets prev_state))) eqn: E1.
+                    -- unfold get_balance_amt. setoid_rewrite FMap.find_remove_ne; try easy. setoid_rewrite E1.
+                        destruct (n0+amount) eqn: E2.
+                        --- cbn. setoid_rewrite FMap.find_remove. easy.
+                        --- cbn. setoid_rewrite FMap.find_add. setoid_rewrite FMap.find_remove_ne; try easy.
+                            setoid_rewrite E1. assumption.
+                    -- unfold get_balance_amt. setoid_rewrite FMap.find_remove_ne; try easy. setoid_rewrite E1.
+                        destruct (0+amount) eqn: E2.
+                        --- cbn. setoid_rewrite FMap.find_remove. easy.
+                        --- cbn. setoid_rewrite FMap.find_add. setoid_rewrite FMap.find_remove_ne; try easy.
+                            setoid_rewrite E1. assumption.
+                * cbn. unfold inc_balance. cbn. destruct (FMap.find (toAddr, token_id) (ledger (assets prev_state))) eqn: E1.
+                    -- unfold get_balance_amt. setoid_rewrite FMap.find_add_ne; try easy. setoid_rewrite E1.
+                        destruct (n0+amount) eqn: E2.
+                        --- cbn. setoid_rewrite FMap.find_remove. easy.
+                        --- cbn. setoid_rewrite FMap.find_add. setoid_rewrite FMap.find_add_ne; try easy.
+                            setoid_rewrite E1. assumption.
+                    -- unfold get_balance_amt. setoid_rewrite FMap.find_add_ne; try easy. setoid_rewrite E1.
+                        destruct (0+amount) eqn: E2.
+                        --- cbn. setoid_rewrite FMap.find_remove. easy.
+                        --- cbn. setoid_rewrite FMap.find_add. setoid_rewrite FMap.find_add_ne; try easy.
+                            setoid_rewrite E1. assumption.
+            + unfold inc_balance. cbn. destruct (FMap.find (toAddr, token_id) (ledger (assets prev_state))) eqn: E1.
+                * unfold get_balance_amt. setoid_rewrite FMap.find_remove_ne; try easy. setoid_rewrite FMap.find_remove_ne; try easy.
+                    setoid_rewrite E1. destruct (n + amount) eqn: E2.
+                    -- cbn. setoid_rewrite FMap.find_remove. easy.
+                    -- cbn. setoid_rewrite FMap.find_add. setoid_rewrite E1. assumption.
+                * unfold get_balance_amt. setoid_rewrite FMap.find_remove_ne; try easy. setoid_rewrite FMap.find_remove_ne; try easy.
+                    setoid_rewrite E1. destruct (0 + amount) eqn: E2.
+                    -- cbn. setoid_rewrite FMap.find_remove. easy.
+                    -- cbn. setoid_rewrite FMap.find_add. setoid_rewrite E1. assumption.
+Qed.
+
+
+            
 
 
             
