@@ -15,6 +15,8 @@ Require Import List.
 Require Import Fees_Lib.
 Require Import Serializable.
 Require Import FA2_Operator_Lib.
+Require Import FSets.
+Require Import FMapList.
 Import ListNotations.
 
 
@@ -84,8 +86,18 @@ Proof.
     intros. contract_simpl fa2_receive fa2_init. reflexivity.
 Qed.
 
+Lemma inc_balance_only_updates_own {x y ledger amount token_id' token_id} :
+    x <> y ->
+    FMap.find (x, token_id') ledger = FMap.find (x, token_id') (inc_balance y token_id amount ledger).
+Proof.
+    intros. unfold inc_balance. destruct (get_balance_amt (y, token_id) ledger + amount =? 0).
+    - setoid_rewrite FMap.find_remove_ne; try easy.
+    - cbn. setoid_rewrite FMap.find_add_ne; try easy.
+Qed. 
+
 (**Check if transfer actually moves assets from one user to another**)
 Lemma transfer_is_functionally_correct {chain ctx prev_state next_state acts fromAddr toAddr amount token_id} :
+    fromAddr <> toAddr ->
     fa2_receive chain ctx prev_state (Some (Assets (FA2_Transfer [{|
         from_ := fromAddr ;
         txs := [{|
@@ -99,22 +111,11 @@ Lemma transfer_is_functionally_correct {chain ctx prev_state next_state acts fro
 Proof.
     intros. contract_simpl fa2_receive fa2_init. split.
         - unfold get_balance_amt. unfold get_balance_amt in H3. 
-            + destruct (FMap.find (fromAddr, token_id) (ledger (assets prev_state))).
-                * induction (FMap.find (fromAddr, token_id)
-                (inc_balance toAddr token_id amount
-                   (if
-                     match FMap.find (fromAddr, token_id) (ledger (assets prev_state)) with
-                     | Some b => b
-                     | None => 0
-                     end - amount =? 0
-                    then FMap.remove (fromAddr, token_id) (ledger (assets prev_state))
-                    else
-                     FMap.add (fromAddr, token_id)
-                       (match FMap.find (fromAddr, token_id) (ledger (assets prev_state)) with
-                        | Some b => b
-                        | None => 0
-                        end - amount) (ledger (assets prev_state))))).
-
+            + destruct (FMap.find (fromAddr, token_id) (ledger (assets prev_state))) eqn: E.
+                * setoid_rewrite E. setoid_rewrite E. destruct (n-amount).
+                    -- cbn. assert (FMap.find (fromAddr, token_id)
+                    (inc_balance toAddr token_id amount
+                       (FMap.remove (fromAddr, token_id) (ledger (assets prev_state)))) = FMap.find (fromAddr, token_id) ledger). apply inc_balance_only_updates_own. unfold inc_balance. cbn.
 
 
             
