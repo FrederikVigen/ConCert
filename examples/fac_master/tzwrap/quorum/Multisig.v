@@ -296,12 +296,10 @@ Proof.
 Qed.
 
 Lemma confirm_admin_correct {ctx chain state state'} :
-    state.(pending_admin) = Some ctx.(ctx_from) ->
     multisig_receive chain ctx state (Some (Admin ConfirmAdmin)) = Some (state', []) ->
     state'.(pending_admin) = None /\ state'.(admin) = ctx.(ctx_from).
 Proof.
-    intro H. cbn. destruct fail_if_amount; try easy.
-    rewrite H. destruct_address_eq; try easy. intros. inversion H0. easy.
+    intros. contract_simpl multisig_receive multisig_init. easy.
 Qed.
 
 Lemma check_signature_aux {sigs} :
