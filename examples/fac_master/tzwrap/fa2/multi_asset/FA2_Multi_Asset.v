@@ -112,6 +112,30 @@ Proof.
     inversion H. easy.
 Qed.
 
+Lemma pause_functionally_correct {ctx chain prev_state next_state tokens token_id} :
+    tokens = [{|
+        pp_token_id := token_id;
+        pp_paused := true
+    |}] ->
+    fa2_receive chain ctx prev_state (Some (Admin (Token_admin (Pause tokens)))) = Some (next_state, []) ->
+    FMap.find token_id next_state.(admin).(tas_paused) = Some tt.
+Proof.
+    intros. contract_simpl fa2_receive fa2_init.
+    cbn. apply FMap.find_add.
+Qed.
+
+Lemma unpause_functionally_correct {ctx chain prev_state next_state tokens token_id} :
+    tokens = [{|
+        pp_token_id := token_id;
+        pp_paused := false
+    |}] ->
+    fa2_receive chain ctx prev_state (Some (Admin (Token_admin (Pause tokens)))) = Some (next_state, []) ->
+    FMap.find token_id next_state.(admin).(tas_paused) = None.
+Proof.
+    intros. contract_simpl fa2_receive fa2_init.
+    cbn. apply FMap.find_remove.
+Qed.
+
 (**----------------- Assets Proofs -----------------**)
 Lemma balance_of_callbacks_with_balance_of {p chain ctx state req_addr req_token_id req acts} :
     req = 
