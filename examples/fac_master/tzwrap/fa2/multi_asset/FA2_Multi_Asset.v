@@ -80,13 +80,20 @@ Definition fa2_init (chain : Chain) (ctx: ContractCallContext) (setup: ((Address
 Definition FA2_contract : Contract ((Address * Address) * ((list TokenMetadata) * N)) MultiAssetParam MultiAssetStorage :=
     build_contract fa2_init fa2_receive.
 
-(** Checks if the total supply stays the same after transfer **)
-Lemma transfer_preserves_total_supply {prev_state next_state acts chain ctx transfers} :
-    fa2_receive chain ctx prev_state (Some (Assets (FA2_Transfer transfers))) = Some (next_state, acts) ->
-    prev_state.(assets).(token_total_supply) = next_state.(assets).(token_total_supply).
+(**----------------- Admin Proofs -----------------**)
+Lemma create_token_creates_new_token {ctx chain prev_state next_state token_id token_info tMetaData} :
+    tMetaData = {|
+        tm_token_id := token_id ;
+        tm_token_info := token_info
+    |} ->
+    fa2_receive chain ctx prev_state (Some (Admin (Create_token tMetaData))) = Some (next_state, []) ->
+    FMap.find token_id next_state.(assets).(token_metadata) = Some tMetaData.
 Proof.
-    intros. contract_simpl fa2_receive fa2_init. reflexivity.
-Qed. 
+    intros. contract_simpl fa2_receive fa2_init. unfold create_token in H1. cbn in H1.
+    destruct (FMap.find token_id (token_metadata (assets prev_state))) in H1; try easy.
+    inversion H1. cbn. setoid_rewrite FMap.find_add. reflexivity.
+Qed.
+
 
 (**----------------- Assets Proofs -----------------**)
 Lemma balance_of_callbacks_with_balance_of {p chain ctx state req_addr req_token_id req acts} :
@@ -104,8 +111,16 @@ Proof.
     - discriminate.
 Qed.
 
+(** Checks if the total supply stays the same after transfer **)
+Lemma transfer_preserves_total_supply {prev_state next_state acts chain ctx transfers} :
+    fa2_receive chain ctx prev_state (Some (Assets (FA2_Transfer transfers))) = Some (next_state, acts) ->
+    prev_state.(assets).(token_total_supply) = next_state.(assets).(token_total_supply).
+Proof.
+    intros. contract_simpl fa2_receive fa2_init. reflexivity.
+Qed. 
+
 (** If inc_balance on other addr own_addr balance does not change **)
-Lemma inc_balance_other_preservces_own {x y ledger amount token_id' token_id} :
+Lemma inc_balance_other_preserves_own {x y ledger amount token_id' token_id} :
     x <> y ->
     FMap.find (x, token_id') ledger = FMap.find (x, token_id') (inc_balance y token_id amount ledger).
 Proof.
@@ -132,9 +147,9 @@ Proof.
         - unfold get_balance_amt. 
             destruct (FMap.find (fromAddr, token_id) (ledger (assets prev_state))) eqn: E.
                 * setoid_rewrite E. setoid_rewrite E. destruct (n-amount).
-                    -- cbn. rewrite <- inc_balance_other_preservces_own; try easy. setoid_rewrite FMap.find_remove. easy.
-                    -- cbn. rewrite <- inc_balance_other_preservces_own; try easy. setoid_rewrite FMap.find_add. easy.
-                * setoid_rewrite E. setoid_rewrite E. cbn. rewrite <- inc_balance_other_preservces_own; try easy.
+                    -- cbn. rewrite <- inc_balance_other_preserves_own; try easy. setoid_rewrite FMap.find_remove. easy.
+                    -- cbn. rewrite <- inc_balance_other_preserves_own; try easy. setoid_rewrite FMap.find_add. easy.
+                * setoid_rewrite E. setoid_rewrite E. cbn. rewrite <- inc_balance_other_preserves_own; try easy.
                 setoid_rewrite FMap.find_remove. easy.
         - unfold get_balance_amt. destruct (FMap.find (fromAddr, token_id) (ledger (assets prev_state))) eqn: E;
             do 2 setoid_rewrite E.
