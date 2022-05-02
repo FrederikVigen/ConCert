@@ -202,5 +202,17 @@ Proof.
         + setoid_rewrite FMap.find_add. unfold get_balance_amt in H3. setoid_rewrite E in H3. 
             apply N.ltb_ge in H3. easy.
 Qed.
-    
+
+(**----------------- TokenManager Proofs -----------------**)
+Lemma mint_functionally_correct {chain ctx prev_state owner token_id amount next_state acts} :
+    fa2_receive chain ctx prev_state (Some (Tokens (MintTokens [{|
+        mint_burn_owner := owner ;
+        mint_burn_token_id := token_id ;
+        mint_burn_amount := amount
+        |}]))) = Some (next_state, acts) ->
+    do old_value <- FMap.find token_id (prev_state.(assets).(token_total_supply)) ;
+        do v <- FMap.find token_id (next_state.(assets).(token_total_supply)) ;
+        old_value + amount = v.
+
+
 End FA2_Multi_Asset.
