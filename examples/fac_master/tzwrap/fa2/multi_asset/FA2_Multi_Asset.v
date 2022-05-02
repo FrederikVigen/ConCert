@@ -105,7 +105,7 @@ Proof.
 Qed.
 
 (** If inc_balance on other addr own_addr balance does not change **)
-Lemma inc_balance_other_preservces_own {x y ledger amount token_id' token_id} :
+Lemma inc_balance_other_preserves_own {x y ledger amount token_id' token_id} :
     x <> y ->
     FMap.find (x, token_id') ledger = FMap.find (x, token_id') (inc_balance y token_id amount ledger).
 Proof.
