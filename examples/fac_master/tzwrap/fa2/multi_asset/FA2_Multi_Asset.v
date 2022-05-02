@@ -94,6 +94,23 @@ Proof.
     inversion H1. cbn. setoid_rewrite FMap.find_add. reflexivity.
 Qed.
 
+Lemma set_new_admin_functionally_correct {ctx chain prev_state next_state new_admin} :
+    fa2_receive chain ctx prev_state (Some (Admin (Token_admin (Set_admin new_admin)))) = Some (next_state, []) ->
+    next_state.(admin).(tas_pending_admin) = Some new_admin.
+Proof.
+    intros. contract_simpl fa2_receive fa2_init. easy.
+Qed.
+
+Lemma confirm_admin_functionally_correct {ctx chain prev_state next_state} :
+    fa2_receive chain ctx prev_state (Some (Admin (Token_admin (Confirm_admin)))) = Some (next_state, []) ->
+    next_state.(admin).(tas_pending_admin) = None /\ next_state.(admin).(tas_admin) = ctx.(ctx_from).
+Proof.
+    intros. contract_simpl fa2_receive fa2_init. unfold confirm_new_admin in H. 
+    destruct (tas_pending_admin (admin prev_state)); try easy.
+    destruct (address_eqb ctx.(ctx_from) a) in H; try easy.
+    inversion H. easy.
+Qed.
+
 
 (**----------------- Assets Proofs -----------------**)
 Lemma balance_of_callbacks_with_balance_of {p chain ctx state req_addr req_token_id req acts} :
