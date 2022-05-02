@@ -80,20 +80,13 @@ Definition fa2_init (chain : Chain) (ctx: ContractCallContext) (setup: ((Address
 Definition FA2_contract : Contract ((Address * Address) * ((list TokenMetadata) * N)) MultiAssetParam MultiAssetStorage :=
     build_contract fa2_init fa2_receive.
 
-(**----------------- Admin Proofs -----------------**)
-Lemma create_token_creates_new_token {ctx chain prev_state next_state token_id token_info tMetaData} :
-    tMetaData = {|
-        tm_token_id := token_id ;
-        tm_token_info := token_info
-    |} ->
-    fa2_receive chain ctx prev_state (Some (Admin (Create_token tMetaData))) = Some (next_state, []) ->
-    FMap.find token_id next_state.(assets).(token_metadata) = Some tMetaData.
+(** Checks if the total supply stays the same after transfer **)
+Lemma transfer_preserves_total_supply {prev_state next_state acts chain ctx transfers} :
+    fa2_receive chain ctx prev_state (Some (Assets (FA2_Transfer transfers))) = Some (next_state, acts) ->
+    prev_state.(assets).(token_total_supply) = next_state.(assets).(token_total_supply).
 Proof.
-    intros. contract_simpl fa2_receive fa2_init. unfold create_token in H1. cbn in H1.
-    destruct (FMap.find token_id (token_metadata (assets prev_state))) in H1; try easy.
-    inversion H1. cbn. setoid_rewrite FMap.find_add. reflexivity.
-Qed.
-
+    intros. contract_simpl fa2_receive fa2_init. reflexivity.
+Qed. 
 
 (**----------------- Assets Proofs -----------------**)
 Lemma balance_of_callbacks_with_balance_of {p chain ctx state req_addr req_token_id req acts} :
@@ -111,16 +104,8 @@ Proof.
     - discriminate.
 Qed.
 
-(** Checks if the total supply stays the same after transfer **)
-Lemma transfer_preserves_total_supply {prev_state next_state acts chain ctx transfers} :
-    fa2_receive chain ctx prev_state (Some (Assets (FA2_Transfer transfers))) = Some (next_state, acts) ->
-    prev_state.(assets).(token_total_supply) = next_state.(assets).(token_total_supply).
-Proof.
-    intros. contract_simpl fa2_receive fa2_init. reflexivity.
-Qed. 
-
 (** If inc_balance on other addr own_addr balance does not change **)
-Lemma inc_balance_other_preserves_own {x y ledger amount token_id' token_id} :
+Lemma inc_balance_other_preservces_own {x y ledger amount token_id' token_id} :
     x <> y ->
     FMap.find (x, token_id') ledger = FMap.find (x, token_id') (inc_balance y token_id amount ledger).
 Proof.
@@ -144,47 +129,47 @@ Lemma transfer_is_functionally_correct {chain ctx prev_state next_state acts fro
     get_balance_amt (toAddr, token_id) next_state.(assets).(ledger) = get_balance_amt (toAddr, token_id) prev_state.(assets).(ledger) + amount.
 Proof.
     intros. contract_simpl fa2_receive fa2_init. split.
-        - unfold get_balance_amt. 
-            destruct (FMap.find (fromAddr, token_id) (ledger (assets prev_state))) eqn: E.
-                * setoid_rewrite E. setoid_rewrite E. destruct (n-amount).
-                    -- cbn. rewrite <- inc_balance_other_preserves_own; try easy. setoid_rewrite FMap.find_remove. easy.
-                    -- cbn. rewrite <- inc_balance_other_preserves_own; try easy. setoid_rewrite FMap.find_add. easy.
-                * setoid_rewrite E. setoid_rewrite E. cbn. rewrite <- inc_balance_other_preserves_own; try easy.
-                setoid_rewrite FMap.find_remove. easy.
-        - unfold get_balance_amt. destruct (FMap.find (fromAddr, token_id) (ledger (assets prev_state))) eqn: E;
-            do 2 setoid_rewrite E.
-            + destruct (n-amount).
-                * unfold inc_balance. cbn. destruct (FMap.find (toAddr, token_id) (ledger (assets prev_state))) eqn: E1.
-                    -- unfold get_balance_amt. setoid_rewrite FMap.find_remove_ne; try easy. setoid_rewrite E1.
-                        destruct (n0+amount) eqn: E2.
-                        --- cbn. setoid_rewrite FMap.find_remove. easy.
-                        --- cbn. setoid_rewrite FMap.find_add. setoid_rewrite FMap.find_remove_ne; try easy.
-                            setoid_rewrite E1. assumption.
-                    -- unfold get_balance_amt. setoid_rewrite FMap.find_remove_ne; try easy. setoid_rewrite E1.
-                        destruct (0+amount) eqn: E2.
-                        --- cbn. setoid_rewrite FMap.find_remove. easy.
-                        --- cbn. setoid_rewrite FMap.find_add. setoid_rewrite FMap.find_remove_ne; try easy.
-                            setoid_rewrite E1. assumption.
-                * cbn. unfold inc_balance. cbn. destruct (FMap.find (toAddr, token_id) (ledger (assets prev_state))) eqn: E1.
-                    -- unfold get_balance_amt. setoid_rewrite FMap.find_add_ne; try easy. setoid_rewrite E1.
-                        destruct (n0+amount) eqn: E2.
-                        --- cbn. setoid_rewrite FMap.find_remove. easy.
-                        --- cbn. setoid_rewrite FMap.find_add. setoid_rewrite FMap.find_add_ne; try easy.
-                            setoid_rewrite E1. assumption.
-                    -- unfold get_balance_amt. setoid_rewrite FMap.find_add_ne; try easy. setoid_rewrite E1.
-                        destruct (0+amount) eqn: E2.
-                        --- cbn. setoid_rewrite FMap.find_remove. easy.
-                        --- cbn. setoid_rewrite FMap.find_add. setoid_rewrite FMap.find_add_ne; try easy.
-                            setoid_rewrite E1. assumption.
-            + unfold inc_balance. cbn. destruct (FMap.find (toAddr, token_id) (ledger (assets prev_state))) eqn: E1.
-                * unfold get_balance_amt. setoid_rewrite FMap.find_remove_ne; try easy. setoid_rewrite FMap.find_remove_ne; try easy.
-                    setoid_rewrite E1. destruct (n + amount) eqn: E2.
-                    -- cbn. setoid_rewrite FMap.find_remove. easy.
-                    -- cbn. setoid_rewrite FMap.find_add. setoid_rewrite E1. assumption.
-                * unfold get_balance_amt. setoid_rewrite FMap.find_remove_ne; try easy. setoid_rewrite FMap.find_remove_ne; try easy.
-                    setoid_rewrite E1. destruct (0 + amount) eqn: E2.
-                    -- cbn. setoid_rewrite FMap.find_remove. easy.
-                    -- cbn. setoid_rewrite FMap.find_add. setoid_rewrite E1. assumption.
+    - unfold get_balance_amt. 
+        destruct (FMap.find (fromAddr, token_id) (ledger (assets prev_state))) eqn: E.
+            * setoid_rewrite E. setoid_rewrite E. destruct (n-amount).
+                -- cbn. rewrite <- inc_balance_other_preservces_own; try easy. setoid_rewrite FMap.find_remove. easy.
+                -- cbn. rewrite <- inc_balance_other_preservces_own; try easy. setoid_rewrite FMap.find_add. easy.
+            * setoid_rewrite E. setoid_rewrite E. cbn. rewrite <- inc_balance_other_preservces_own; try easy.
+            setoid_rewrite FMap.find_remove. easy.
+    - unfold get_balance_amt. destruct (FMap.find (fromAddr, token_id) (ledger (assets prev_state))) eqn: E;
+        do 2 setoid_rewrite E.
+        + destruct (n-amount).
+            * unfold inc_balance. cbn. destruct (FMap.find (toAddr, token_id) (ledger (assets prev_state))) eqn: E1.
+                -- unfold get_balance_amt. setoid_rewrite FMap.find_remove_ne; try easy. setoid_rewrite E1.
+                    destruct (n0+amount) eqn: E2.
+                    --- cbn. setoid_rewrite FMap.find_remove. easy.
+                    --- cbn. setoid_rewrite FMap.find_add. setoid_rewrite FMap.find_remove_ne; try easy.
+                        setoid_rewrite E1. assumption.
+                -- unfold get_balance_amt. setoid_rewrite FMap.find_remove_ne; try easy. setoid_rewrite E1.
+                    destruct (0+amount) eqn: E2.
+                    --- cbn. setoid_rewrite FMap.find_remove. easy.
+                    --- cbn. setoid_rewrite FMap.find_add. setoid_rewrite FMap.find_remove_ne; try easy.
+                        setoid_rewrite E1. assumption.
+            * cbn. unfold inc_balance. cbn. destruct (FMap.find (toAddr, token_id) (ledger (assets prev_state))) eqn: E1.
+                -- unfold get_balance_amt. setoid_rewrite FMap.find_add_ne; try easy. setoid_rewrite E1.
+                    destruct (n0+amount) eqn: E2.
+                    --- cbn. setoid_rewrite FMap.find_remove. easy.
+                    --- cbn. setoid_rewrite FMap.find_add. setoid_rewrite FMap.find_add_ne; try easy.
+                        setoid_rewrite E1. assumption.
+                -- unfold get_balance_amt. setoid_rewrite FMap.find_add_ne; try easy. setoid_rewrite E1.
+                    destruct (0+amount) eqn: E2.
+                    --- cbn. setoid_rewrite FMap.find_remove. easy.
+                    --- cbn. setoid_rewrite FMap.find_add. setoid_rewrite FMap.find_add_ne; try easy.
+                        setoid_rewrite E1. assumption.
+        + unfold inc_balance. cbn. destruct (FMap.find (toAddr, token_id) (ledger (assets prev_state))) eqn: E1.
+            * unfold get_balance_amt. setoid_rewrite FMap.find_remove_ne; try easy. setoid_rewrite FMap.find_remove_ne; try easy.
+                setoid_rewrite E1. destruct (n + amount) eqn: E2.
+                -- cbn. setoid_rewrite FMap.find_remove. easy.
+                -- cbn. setoid_rewrite FMap.find_add. setoid_rewrite E1. assumption.
+            * unfold get_balance_amt. setoid_rewrite FMap.find_remove_ne; try easy. setoid_rewrite FMap.find_remove_ne; try easy.
+                setoid_rewrite E1. destruct (0 + amount) eqn: E2.
+                -- cbn. setoid_rewrite FMap.find_remove. easy.
+                -- cbn. setoid_rewrite FMap.find_add. setoid_rewrite E1. assumption.
 Qed.
 
 (** Check that transfer to selv changes nothing **)
@@ -219,15 +204,43 @@ Proof.
 Qed.
 
 (**----------------- TokenManager Proofs -----------------**)
-Lemma mint_functionally_correct {chain ctx prev_state owner token_id amount next_state acts} :
+Lemma mint_functionally_correct {chain ctx prev_state owner token_id amount next_state acts old_value v} :
     fa2_receive chain ctx prev_state (Some (Tokens (MintTokens [{|
         mint_burn_owner := owner ;
         mint_burn_token_id := token_id ;
         mint_burn_amount := amount
         |}]))) = Some (next_state, acts) ->
-    do old_value <- FMap.find token_id (prev_state.(assets).(token_total_supply)) ;
-        do v <- FMap.find token_id (next_state.(assets).(token_total_supply)) ;
-        old_value + amount = v.
+    FMap.find token_id (prev_state.(assets).(token_total_supply)) = Some old_value ->
+    FMap.find token_id (next_state.(assets).(token_total_supply)) = Some v -> 
+    old_value + amount = v /\
+    get_balance_amt (owner, token_id) prev_state.(assets).(ledger) + amount = get_balance_amt (owner, token_id) next_state.(assets).(ledger).
+Proof.
+    intros. cbn in H. contract_simpl fa2_receive fa2_init. cbn in H1. split.
+    - setoid_rewrite FMap.find_add in H1. setoid_rewrite H0 in H. inversion H1. easy.
+    - unfold inc_balance. cbn. destruct (get_balance_amt (owner, token_id) (ledger (assets prev_state)) + amount) eqn: E; 
+        cbn; unfold get_balance_amt.
+        + setoid_rewrite FMap.find_remove. easy.
+        + setoid_rewrite FMap.find_add. easy.
+Qed.
+
+Lemma burn_functionally_correct {chain ctx prev_state owner token_id amount next_state acts old_value v} :
+    fa2_receive chain ctx prev_state (Some (Tokens (BurnTokens [{|
+        mint_burn_owner := owner ;
+        mint_burn_token_id := token_id ;
+        mint_burn_amount := amount
+        |}]))) = Some (next_state, acts) ->
+    FMap.find token_id (prev_state.(assets).(token_total_supply)) = Some old_value ->
+    FMap.find token_id (next_state.(assets).(token_total_supply)) = Some v -> 
+    old_value - amount = v /\
+    get_balance_amt (owner, token_id) prev_state.(assets).(ledger) - amount = get_balance_amt (owner, token_id) next_state.(assets).(ledger).
+Proof.
+    intros. cbn in H. contract_simpl fa2_receive fa2_init. cbn in H1. split.
+    - setoid_rewrite FMap.find_add in H1. setoid_rewrite H0 in H. inversion H1. easy.
+    - unfold inc_balance. cbn. destruct (get_balance_amt (owner, token_id) (ledger (assets prev_state)) - amount) eqn: E; 
+        cbn; unfold get_balance_amt.
+        + setoid_rewrite FMap.find_remove. easy.
+        + setoid_rewrite FMap.find_add. easy.
+Qed.
 
 
 End FA2_Multi_Asset.
