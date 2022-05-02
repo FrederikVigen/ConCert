@@ -1,4 +1,5 @@
 Require Import Blockchain.
+From ConCert.Examples Require Import FA2Interface.
 Require Import FA2InterfaceOwn.
 Require Import RecordUpdate.
 Require Import ContractCommon.
@@ -85,14 +86,23 @@ Lemma transfer_preserves_total_supply {prev_state next_state acts chain ctx tran
     prev_state.(assets).(token_total_supply) = next_state.(assets).(token_total_supply).
 Proof.
     intros. contract_simpl fa2_receive fa2_init. reflexivity.
-Qed.
-
+Qed. 
 
 (**----------------- Assets Proofs -----------------**)
-Lemma balance_of_callbacks_with_balance_of {p storage} :
-    fa2_recieve chain ctx prev_state (Some (Assets (Balance_of (p)))) ->
-
-
+Lemma balance_of_callbacks_with_balance_of {p chain ctx state req_addr req_token_id req acts} :
+    req = 
+    {|
+        owner := req_addr ;
+        bal_req_token_id := req_token_id
+    |} ->
+    p.(bal_requests) = [req] ->
+    fa2_receive chain ctx state (Some (Assets (Balance_of (p)))) = Some (state, acts) ->
+    acts = [act_call p.(bal_callback) 0 (serialize [{|request := req; balance:=(get_balance_amt (req.(owner), req.(bal_req_token_id)) state.(assets).(ledger)) |}])].
+Proof.
+    intros. contract_simpl fa2_receive fa2_init. rewrite H0 in H1. cbn in H1. destruct (FMap.find req_token_id (token_metadata (assets state))).
+    - inversion H1. reflexivity.
+    - discriminate.
+Qed.
 
 (** If inc_balance on other addr own_addr balance does not change **)
 Lemma inc_balance_other_preservces_own {x y ledger amount token_id' token_id} :
