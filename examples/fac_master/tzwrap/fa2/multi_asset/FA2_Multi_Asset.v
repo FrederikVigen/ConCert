@@ -87,7 +87,8 @@ Proof.
     intros. contract_simpl fa2_receive fa2_init. reflexivity.
 Qed.
 
-Lemma inc_balance_only_updates_own {x y ledger amount token_id' token_id} :
+(** If inc_balance on other addr own_addr balance does not change **)
+Lemma inc_balance_other_preservces_own {x y ledger amount token_id' token_id} :
     x <> y ->
     FMap.find (x, token_id') ledger = FMap.find (x, token_id') (inc_balance y token_id amount ledger).
 Proof.
@@ -114,9 +115,9 @@ Proof.
         - unfold get_balance_amt. 
             destruct (FMap.find (fromAddr, token_id) (ledger (assets prev_state))) eqn: E.
                 * setoid_rewrite E. setoid_rewrite E. destruct (n-amount).
-                    -- cbn. rewrite <- inc_balance_only_updates_own; try easy. setoid_rewrite FMap.find_remove. easy.
-                    -- cbn. rewrite <- inc_balance_only_updates_own; try easy. setoid_rewrite FMap.find_add. easy.
-                * setoid_rewrite E. setoid_rewrite E. cbn. rewrite <- inc_balance_only_updates_own; try easy.
+                    -- cbn. rewrite <- inc_balance_other_preservces_own; try easy. setoid_rewrite FMap.find_remove. easy.
+                    -- cbn. rewrite <- inc_balance_other_preservces_own; try easy. setoid_rewrite FMap.find_add. easy.
+                * setoid_rewrite E. setoid_rewrite E. cbn. rewrite <- inc_balance_other_preservces_own; try easy.
                 setoid_rewrite FMap.find_remove. easy.
         - unfold get_balance_amt. destruct (FMap.find (fromAddr, token_id) (ledger (assets prev_state))) eqn: E;
             do 2 setoid_rewrite E.
@@ -154,6 +155,7 @@ Proof.
                     -- cbn. setoid_rewrite FMap.find_add. setoid_rewrite E1. assumption.
 Qed.
 
+(** Check that transfer to selv changes nothing **)
 Lemma transfer_to_self_changes_nothing {chain ctx prev_state next_state acts fromAddr toAddr amount token_id} :
     fromAddr = toAddr ->
     fa2_receive chain ctx prev_state (Some (Assets (FA2_Transfer [{|
