@@ -87,6 +87,13 @@ Proof.
     intros. contract_simpl fa2_receive fa2_init. reflexivity.
 Qed.
 
+
+(**----------------- Assets Proofs -----------------**)
+Lemma balance_of_callbacks_with_balance_of {p storage} :
+    fa2_recieve chain ctx prev_state (Some (Assets (Balance_of (p)))) ->
+
+
+
 (** If inc_balance on other addr own_addr balance does not change **)
 Lemma inc_balance_other_preservces_own {x y ledger amount token_id' token_id} :
     x <> y ->
