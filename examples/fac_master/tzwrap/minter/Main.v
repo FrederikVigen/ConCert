@@ -23,6 +23,7 @@ Require Import Containers.
 Require Import String.
 Require Import List.
 Require Import Types.
+From ConCert.Examples.FA2 Require Import FA2Interface.
 Require Import FA2InterfaceOwn.
 Import ListNotations.
 
@@ -185,9 +186,37 @@ Proof.
     try inversion H; rewrite E2; easy. 
 Qed.
 
+(* Fees ledger should be updated correctly and correct burn and mint calls should be made *)
+Lemma unwrap_erc721_functionally_correct {chain ctx prev_state next_state eth_address erc721_dest acts token_id token_addr v new_v} :
+    minter_receive chain ctx prev_state (Some (Unwrap (unwrap_erc721_entrypoint ({|
+        erc_721 := eth_address;
+        up_token_id := token_id;
+        up_erc721_destination := erc721_dest
+    |})))) = Some (next_state, acts) ->
+    get_nft_contract eth_address prev_state.(assets).(erc721tokens) = Some token_addr ->
+    ((FMap.find ctx.(ctx_contract_address) (prev_state.(fees).(fees_storage_xtz)) = Some v ->
+    FMap.find ctx.(ctx_contract_address) (next_state.(fees).(fees_storage_xtz)) = Some new_v ->
+    new_v = v + (Z.to_N (ctx.(ctx_amount))))
+    /\
+    (* Call to burn the NFT from the owner *)
+    let burnTokensParams := {|
+            mint_burn_owner := ctx.(ctx_from);
+            mint_burn_token_id := token_id;
+            mint_burn_amount := 1
+        |} in
+    let burn := act_call token_addr 0 (serialize (BurnTokens [burnTokensParams])) in
+    acts = [burn]
+    ).
+Proof.
+    intros. contract_simpl minter_receive minter_init. cbn in *.
+    setoid_rewrite FMap.find_add. split. 
+    - intros. rewrite H in H4. inversion H4. easy.
+    - easy.
+Qed.
+
 (* UNWRAP SAFETY PROPERTIES *)
 (* If fees are below required. Unwrap should fail *)
-Lemma unwrap_erc20_fees_below_min {chain ctx prev_state eth_address amount fees_amount erc20_dest} :
+Lemma unwrap_erc20_below_min {chain ctx prev_state eth_address amount fees_amount erc20_dest} :
     fees_amount < Fees_Lib.bps_of amount prev_state.(governance).(erc20_unwrapping_fees) ->
     minter_receive chain ctx prev_state (Some (Unwrap (unwrap_erc20_entrypoint ({|
         erc_20 := eth_address;
@@ -201,5 +230,18 @@ Proof.
     destruct t. unfold Fees_Lib.check_fees_high_enough. unfold throwIf. rewrite <- N.ltb_lt in H. rewrite H. reflexivity.
 Qed.
     
+(* If fees are below required. Unwrap should fail *)
+Lemma unwrap_erc721_fees_below_min {chain ctx prev_state eth_address erc721_dest token_id} :
+    Z.to_N ctx.(ctx_amount) < prev_state.(governance).(erc721_unwrapping_fees) ->
+    minter_receive chain ctx prev_state (Some (Unwrap (unwrap_erc721_entrypoint ({|
+        erc_721 := eth_address;
+        up_token_id := token_id;
+        up_erc721_destination := erc721_dest
+    |})))) = None.
+Proof.
+    intros. contract_simpl minter_receive minter_init. destruct (fail_if_paused (admin prev_state)); try easy.
+    unfold Fees_Lib.check_nft_fees_high_enough. unfold throwIf. rewrite <- N.ltb_lt in H. rewrite H. reflexivity.
+Qed.
+
 
 End Main. 
