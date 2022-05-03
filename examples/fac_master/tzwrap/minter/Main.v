@@ -23,6 +23,8 @@ Require Import Containers.
 Require Import String.
 Require Import List.
 Require Import Types.
+Require Import FA2InterfaceOwn.
+Import ListNotations.
 
 Section Main.
 
@@ -137,4 +139,43 @@ Definition minter_init (chain : Chain) (ctx : ContractCallContext) (setup : Setu
 Definition minter_contract : Contract Setup EntryPoints State :=
 build_contract minter_init minter_receive.
 
-End Main.
+(* Fees ledger should be updated correctly and correct burn and mint calls should be made *)
+Lemma unwrap_erc20_functionally_correct {chain ctx prev_state next_state eth_address amount fees_amount erc20_dest acts token_address v new_v} :
+    (minter_receive chain ctx prev_state (Some (Unwrap (unwrap_erc20_entrypoint ({|
+        erc_20 := eth_address;
+        up_amount := amount;
+        up_fees := fees_amount;
+        up_erc20_destination := erc20_dest
+    |})))) = Some (next_state, acts)) ->
+    get_fa2_token_id eth_address prev_state.(assets).(erc20tokens) = Some token_address ->
+    ((FMap.find (ctx.(ctx_contract_address), token_address) (prev_state.(fees).(fees_storage_tokens)) = Some v ->
+    FMap.find (ctx.(ctx_contract_address), token_address) (next_state.(fees).(fees_storage_tokens)) = Some new_v ->
+    new_v = fees_amount + v)
+    /\
+    (let burnTokensParams := {|
+            mint_burn_owner:= ctx.(ctx_from);
+            mint_burn_token_id := snd token_address;
+            mint_burn_amount := amount + fees_amount
+    |} in
+    let mintTokensParams :=  {|
+            mint_burn_owner := ctx.(ctx_contract_address);
+            mint_burn_token_id := snd token_address;
+            mint_burn_amount := fees_amount
+    |} in
+    let burn := act_call (fst token_address) 0 (serialize (BurnTokens [burnTokensParams])) in
+    if fees_amount =? 0
+    then acts = [burn]
+    else acts = [burn] ++ [act_call (fst token_address) 0 (serialize (MintTokens [mintTokensParams]))])).
+Proof.
+    intros. contract_simpl minter_receive minter_init. unfold unwrap_erc20 in H. cbn in *.
+    setoid_rewrite H0 in H. split.
+    (* Fees ledger correct *)
+    - intros. cbn in *. unfold Fees_Lib.token_balance in H. rewrite H3 in H. destruct (token_address) eqn:E2 in H.
+    inversion H. rewrite <- H6 in H4. cbn in H4. rewrite E2 in H4. setoid_rewrite FMap.find_add in H4.
+    inversion H2. easy.
+    (* Acts correct *)
+    - intros. destruct (token_address) eqn:E2 in H. destruct fees_amount eqn:E3; cbn in *; 
+    try inversion H; rewrite E2; easy. 
+Qed.
+    
+End Main. 
