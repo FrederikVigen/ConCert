@@ -9,7 +9,7 @@ Context {BaseTypes : ChainBase}.
 
 Definition bps := N.
 
-Definition MetaData := FMap string positive.
+Definition MetaData := FMap string N.
 
 Definition TokenAddress : Type := (Address * N).
 

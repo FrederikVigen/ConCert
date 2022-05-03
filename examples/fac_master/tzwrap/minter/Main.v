@@ -1,4 +1,5 @@
 Require Import Storage.
+Require Import ZArith.
 Require Import Fees.
 Require Import Fees_Interface.
 Require Import Blockchain.
@@ -17,11 +18,17 @@ Require Import Signer.
 Require Import Signer_Ops_Interface.
 Require Import SignerOps.
 Require Import Serializable.
+Require Import Ethereum_Lib.
+Require Import Containers.
+Require Import String.
+Require Import List.
+Require Import Types.
 
 Section Main.
 
 Context {BaseTypes : ChainBase}.
 Set Nonrecursive Elimination Schemes.
+Open Scope N_scope.
 
 Inductive EntryPoints :=
     | Fees (fees_entrypoints : WithdrawalEntrypoint)
@@ -33,8 +40,19 @@ Inductive EntryPoints :=
     | Signer_Ops (signer_ops_entrypoints : SignerOpsEntrypoint)
 .
 
+Record Setup := {
+    quorum_contract : Address;
+    meta_data_uri : N;
+    setup_tokens : list EthAddress;
+    nft_contracts : FMap EthAddress Address;
+    fa2_contract : Address
+}.
+
 Global Instance EntryPoints_serializable : Serializable EntryPoints :=
     Derive Serializable EntryPoints_rect<Fees, Unwrap, ContractAdmin, Governance, Oracle, Signer, Signer_Ops>.
+
+Global Instance Setup_serializable : Serializable Setup :=
+    Derive Serializable Setup_rect<Build_Setup>.
 
 Definition fail_if_paused (s : ContractAdminStorage) : option unit :=
     throwIf (s.(paused)).
@@ -74,11 +92,49 @@ Definition minter_receive (chain : Chain) (ctx : ContractCallContext) (state : S
     do msg <- msg_opt ;
     main ctx msg state.
 
-Definition minter_init (chain : Chain) (ctx : ContractCallContext) (setup : Address) : option State :=
-    None.
+Definition minter_init (chain : Chain) (ctx : ContractCallContext) (setup : Setup) : option State :=
+    let meta := FMap.update EmptyString (Some setup.(meta_data_uri)) FMap.empty in
+    let fungible_tokens := fold_right (
+        fun (eth_contract : EthAddress) (acc : (N * FMap EthAddress TokenAddress)) =>
+        ((fst acc) + 1, FMap.update eth_contract (Some (setup.(fa2_contract), fst acc)) (snd acc))
+    ) (0, FMap.empty) setup.(setup_tokens) in
+    Some {| 
+        admin := {| 
+            administrator := ctx.(ctx_from);
+            pending_admin := None;
+            oracle := setup.(quorum_contract);
+            signer := setup.(quorum_contract);
+            paused := false
+        |};
+        assets := {|
+            erc20tokens := snd fungible_tokens;
+            erc721tokens := setup.(nft_contracts);
+            mints := FMap.empty
+        |};
+        fees := {|
+            fees_storage_signers := FMap.empty;
+            fees_storage_tokens := FMap.empty;
+            fees_storage_xtz := FMap.empty
+        |};
+        governance := {|
+            contract := ctx.(ctx_from);
+            staking_address := ctx.(ctx_from);
+            dev_pool_address := ctx.(ctx_from);
+            erc20_wrapping_fees := 15;
+            erc20_unwrapping_fees := 15;
+            erc721_wrapping_fees := 500000;
+            erc721_unwrapping_fees := 500000;
+            fees_share_rec := {|
+                dev_pool := 10;
+                signers := 50;
+                staking := 40
+            |}
+        |};
+        storage_metadata := meta
+    |}.
 
 (** The minter contract *)
-Definition minter_contract : Contract Address EntryPoints State :=
+Definition minter_contract : Contract Setup EntryPoints State :=
 build_contract minter_init minter_receive.
 
 End Main.
