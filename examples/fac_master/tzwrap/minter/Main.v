@@ -140,6 +140,29 @@ Definition minter_init (chain : Chain) (ctx : ContractCallContext) (setup : Setu
 Definition minter_contract : Contract Setup EntryPoints State :=
     build_contract minter_init minter_receive.
 
+(**----------------- Signer Proofs -----------------**)
+Lemma mint_erc20_functionally_correct {chain ctx prev_state next_state erc20Address event_id
+    owner amount acts token_address v new_v n} : 
+    minter_receive chain ctx prev_state (Some (Signer 
+        (Mint_erc20 {|
+            erc20 := erc20Address;
+            event_id_erc20 := event_id;
+            owner_erc20 := owner;
+            amount_erc20 :=amount
+        |}))) = Some (next_state, acts) ->
+    prev_state.(governance).(erc20_wrapping_fees) = n ->
+    FMap.find erc20Address prev_state.(assets).(erc20tokens) = Some token_address ->
+    FMap.find (ctx.(ctx_contract_address), token_address) prev_state.(fees).(fees_storage_tokens) = Some v ->
+    FMap.find (ctx.(ctx_contract_address), token_address) next_state.(fees).(fees_storage_tokens) = Some new_v ->
+    v + (amount * n /10000) = new_v.
+Proof.
+    intros. contract_simpl minter_receive minter_init. cbn in *. unfold Fees_Lib.token_balance in H2.
+    unfold get_fa2_token_id in H9. rewrite H9 in H1. inversion H1. subst. 
+    setoid_rewrite FMap.find_add in H3. unfold Fees_Lib.token_balance in H3.
+    rewrite H2 in H3. cbn in *. unfold Fees_Lib.bps_of in H3. inversion H3. easy.
+Qed.
+
+
 (**----------------- Fees Proofs -----------------**)
 Lemma Withdraw_all_tokens_is_functionally_correct {chain ctx prev_state p next_state ops token_id amount} :
     p.(tokens) = [token_id] ->

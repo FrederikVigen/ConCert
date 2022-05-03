@@ -53,6 +53,7 @@ Definition fa2_receive (chain : Chain) (ctx : ContractCallContext) (state: Multi
     do msg <- msg_opt ;
     main ctx msg state.    
 
+    (* TODO : Make into setup record  *)
 Definition fa2_init (chain : Chain) (ctx: ContractCallContext) (setup: ((Address * Address) * ((list TokenMetadata) * N))) : option MultiAssetStorage :=
     let (t1,t2) := setup in
     let (admin, minter) := t1 in
