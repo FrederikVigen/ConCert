@@ -167,7 +167,7 @@ Proof.
 Qed.
 
 
-(*  UNWRAP PROOF *)
+(**----------------- Unwrap Proofs -----------------**)
 
 (* Fees ledger should be updated correctly and correct burn and mint calls should be made *)
 Lemma unwrap_erc20_functionally_correct {chain ctx prev_state next_state eth_address amount fees_amount erc20_dest acts token_address v new_v} :
