@@ -174,11 +174,29 @@ Proof.
     setoid_rewrite H0 in H. split.
     (* Fees ledger correct *)
     - intros. cbn in *. unfold Fees_Lib.token_balance in H. rewrite H3 in H. destruct (token_address) eqn:E2 in H.
+    destruct (Fees_Lib.check_fees_high_enough fees_amount (Fees_Lib.bps_of amount (erc20_unwrapping_fees (governance prev_state)))) in H; try easy.
     inversion H. rewrite <- H6 in H4. cbn in H4. rewrite E2 in H4. setoid_rewrite FMap.find_add in H4.
     inversion H2. easy.
     (* Acts correct *)
-    - intros. destruct (token_address) eqn:E2 in H. destruct fees_amount eqn:E3; cbn in *; 
+    - intros. destruct (token_address) eqn:E2 in H. destruct (Fees_Lib.check_fees_high_enough fees_amount (Fees_Lib.bps_of amount (erc20_unwrapping_fees (governance prev_state)))) in H; try easy. 
+    destruct fees_amount eqn:E3; cbn in *; 
     try inversion H; rewrite E2; easy. 
 Qed.
+
+(* If fees are below required. Unwrap should fail *)
+Lemma unwrap_erc20_fees_below_min {chain ctx prev_state eth_address amount fees_amount erc20_dest} :
+    fees_amount < Fees_Lib.bps_of amount prev_state.(governance).(erc20_unwrapping_fees) ->
+    minter_receive chain ctx prev_state (Some (Unwrap (unwrap_erc20_entrypoint ({|
+        erc_20 := eth_address;
+        up_amount := amount;
+        up_fees := fees_amount;
+        up_erc20_destination := erc20_dest
+    |})))) = None.
+Proof.
+    intros. contract_simpl minter_receive minter_init. destruct (fail_if_paused (admin prev_state)); try easy.
+    destruct (fail_if_amount ctx); try easy. unfold unwrap_erc20. cbn in *. destruct (get_fa2_token_id eth_address (erc20tokens (assets prev_state))); try easy.
+    destruct t. unfold Fees_Lib.check_fees_high_enough. unfold throwIf. rewrite <- N.ltb_lt in H. rewrite H. reflexivity.
+Qed.
     
+
 End Main. 

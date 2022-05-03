@@ -54,7 +54,7 @@ Definition unwrap_erc20 (ctx : ContractCallContext) (p : UnwrapERC20Parameters) 
     | Some token_address => 
         let (contract_address, token_id) := token_address in
         let min_fees := bps_of p.(up_amount) governance.(erc20_unwrapping_fees) in
-        let ignore := check_fees_high_enough p.(up_fees) min_fees in
+        do _ <- check_fees_high_enough p.(up_fees) min_fees ;
         let burnTokensParams := {|
             mint_burn_owner:= ctx.(ctx_from);
             mint_burn_token_id := token_id;
