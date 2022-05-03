@@ -167,4 +167,67 @@ Proof.
 Qed.
 
 
-End Main.
+(*  UNWRAP PROOF *)
+
+(* Fees ledger should be updated correctly and correct burn and mint calls should be made *)
+Lemma unwrap_erc20_functionally_correct {chain ctx prev_state next_state eth_address amount fees_amount erc20_dest acts token_address v new_v} :
+    (minter_receive chain ctx prev_state (Some (Unwrap (unwrap_erc20_entrypoint ({|
+        erc_20 := eth_address;
+        up_amount := amount;
+        up_fees := fees_amount;
+        up_erc20_destination := erc20_dest
+    |})))) = Some (next_state, acts)) ->
+    get_fa2_token_id eth_address prev_state.(assets).(erc20tokens) = Some token_address ->
+    ((FMap.find (ctx.(ctx_contract_address), token_address) (prev_state.(fees).(fees_storage_tokens)) = Some v ->
+    FMap.find (ctx.(ctx_contract_address), token_address) (next_state.(fees).(fees_storage_tokens)) = Some new_v ->
+    new_v = fees_amount + v)
+    /\
+    (* Burn call for burning the amount + fees from the caller of the unwrap *)
+    (let burnTokensParams := {|
+            mint_burn_owner:= ctx.(ctx_from);
+            mint_burn_token_id := snd token_address;
+            mint_burn_amount := amount + fees_amount
+    |} in
+    (* Mint call for minting fees to the contract itself *)
+    let mintTokensParams :=  {|
+            mint_burn_owner := ctx.(ctx_contract_address);
+            mint_burn_token_id := snd token_address;
+            mint_burn_amount := fees_amount
+    |} in
+    let burn := act_call (fst token_address) 0 (serialize (BurnTokens [burnTokensParams])) in
+    (* If fees are zero no call to mint fees should be made *)
+    if fees_amount =? 0
+    then acts = [burn]
+    else acts = [burn] ++ [act_call (fst token_address) 0 (serialize (MintTokens [mintTokensParams]))])).
+Proof.
+    intros. contract_simpl minter_receive minter_init. unfold unwrap_erc20 in H. cbn in *.
+    setoid_rewrite H0 in H. split.
+    (* Fees ledger correct *)
+    - intros. cbn in *. unfold Fees_Lib.token_balance in H. rewrite H3 in H. destruct (token_address) eqn:E2 in H.
+    destruct (Fees_Lib.check_fees_high_enough fees_amount (Fees_Lib.bps_of amount (erc20_unwrapping_fees (governance prev_state)))) in H; try easy.
+    inversion H. rewrite <- H6 in H4. cbn in H4. rewrite E2 in H4. setoid_rewrite FMap.find_add in H4.
+    inversion H2. easy.
+    (* Acts correct *)
+    - intros. destruct (token_address) eqn:E2 in H. destruct (Fees_Lib.check_fees_high_enough fees_amount (Fees_Lib.bps_of amount (erc20_unwrapping_fees (governance prev_state)))) in H; try easy. 
+    destruct fees_amount eqn:E3; cbn in *; 
+    try inversion H; rewrite E2; easy. 
+Qed.
+
+(* UNWRAP SAFETY PROPERTIES *)
+(* If fees are below required. Unwrap should fail *)
+Lemma unwrap_erc20_fees_below_min {chain ctx prev_state eth_address amount fees_amount erc20_dest} :
+    fees_amount < Fees_Lib.bps_of amount prev_state.(governance).(erc20_unwrapping_fees) ->
+    minter_receive chain ctx prev_state (Some (Unwrap (unwrap_erc20_entrypoint ({|
+        erc_20 := eth_address;
+        up_amount := amount;
+        up_fees := fees_amount;
+        up_erc20_destination := erc20_dest
+    |})))) = None.
+Proof.
+    intros. contract_simpl minter_receive minter_init. destruct (fail_if_paused (admin prev_state)); try easy.
+    destruct (fail_if_amount ctx); try easy. unfold unwrap_erc20. cbn in *. destruct (get_fa2_token_id eth_address (erc20tokens (assets prev_state))); try easy.
+    destruct t. unfold Fees_Lib.check_fees_high_enough. unfold throwIf. rewrite <- N.ltb_lt in H. rewrite H. reflexivity.
+Qed.
+    
+
+End Main. 
