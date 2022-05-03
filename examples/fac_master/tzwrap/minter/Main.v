@@ -152,17 +152,20 @@ Lemma unwrap_erc20_functionally_correct {chain ctx prev_state next_state eth_add
     FMap.find (ctx.(ctx_contract_address), token_address) (next_state.(fees).(fees_storage_tokens)) = Some new_v ->
     new_v = fees_amount + v)
     /\
+    (* Burn call for burning the amount + fees from the caller of the unwrap *)
     (let burnTokensParams := {|
             mint_burn_owner:= ctx.(ctx_from);
             mint_burn_token_id := snd token_address;
             mint_burn_amount := amount + fees_amount
     |} in
+    (* Mint call for minting fees to the contract itself *)
     let mintTokensParams :=  {|
             mint_burn_owner := ctx.(ctx_contract_address);
             mint_burn_token_id := snd token_address;
             mint_burn_amount := fees_amount
     |} in
     let burn := act_call (fst token_address) 0 (serialize (BurnTokens [burnTokensParams])) in
+    (* If fees are zero no call to mint fees should be made *)
     if fees_amount =? 0
     then acts = [burn]
     else acts = [burn] ++ [act_call (fst token_address) 0 (serialize (MintTokens [mintTokensParams]))])).
