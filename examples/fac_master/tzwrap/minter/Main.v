@@ -23,6 +23,9 @@ Require Import Containers.
 Require Import String.
 Require Import List.
 Require Import Types.
+Import ListNotations.
+Require Import Fees_Lib.
+Require Import FA2InterfaceOwn.
 
 Section Main.
 
@@ -135,6 +138,33 @@ Definition minter_init (chain : Chain) (ctx : ContractCallContext) (setup : Setu
 
 (** The minter contract *)
 Definition minter_contract : Contract Setup EntryPoints State :=
-build_contract minter_init minter_receive.
+    build_contract minter_init minter_receive.
+
+(**----------------- Fees Proofs -----------------**)
+Lemma Withdraw_all_tokens_is_functionally_correct {chain ctx prev_state p next_state ops token_id amount} :
+    p.(tokens) = [token_id] ->
+    token_balance prev_state.(fees).(fees_storage_tokens) ctx.(ctx_from) (p.(fa2_tokens), token_id) = amount ->
+    minter_receive chain ctx prev_state (Some (Fees (Withdraw_all_tokens p))) = Some (next_state, ops) ->
+    token_balance next_state.(fees).(fees_storage_tokens) ctx.(ctx_from) (p.(fa2_tokens), token_id) = 0 /\
+    (ops = [act_call ctx.(ctx_contract_address) (N_to_amount 0) (serialize ({|
+        from_ := p.(fa2_tokens);
+        txs := [{|
+            to_ := ctx.(ctx_from);
+            dst_token_id := token_id;
+            amount := amount
+        |}]
+    |}))] \/ ops = []).
+Proof.
+    intros. contract_simpl minter_receive minter_init. unfold generate_tokens_transfer in H1.
+    unfold generate_tx_destinations in H1. rewrite H in H1. cbn in H1. rewrite H0 in H1. 
+    destruct (amount =? 0) eqn:E in H1. 
+    - cbn in H1. inversion H1. split.
+        + cbn. apply N.eqb_eq in E. rewrite E in H0. apply H0.
+        + easy.
+    - cbn in H1. inversion H1. cbn. split.
+        + unfold token_balance. setoid_rewrite FMap.find_remove. reflexivity.
+        + easy.
+Qed.
+
 
 End Main.
