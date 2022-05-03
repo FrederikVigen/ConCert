@@ -112,6 +112,30 @@ Proof.
     inversion H. easy.
 Qed.
 
+Lemma pause_functionally_correct {ctx chain prev_state next_state tokens token_id} :
+    tokens = [{|
+        pp_token_id := token_id;
+        pp_paused := true
+    |}] ->
+    fa2_receive chain ctx prev_state (Some (Admin (Token_admin (Pause tokens)))) = Some (next_state, []) ->
+    FMap.find token_id next_state.(admin).(tas_paused) = Some tt.
+Proof.
+    intros. contract_simpl fa2_receive fa2_init.
+    cbn. apply FMap.find_add.
+Qed.
+
+Lemma unpause_functionally_correct {ctx chain prev_state next_state tokens token_id} :
+    tokens = [{|
+        pp_token_id := token_id;
+        pp_paused := false
+    |}] ->
+    fa2_receive chain ctx prev_state (Some (Admin (Token_admin (Pause tokens)))) = Some (next_state, []) ->
+    FMap.find token_id next_state.(admin).(tas_paused) = None.
+Proof.
+    intros. contract_simpl fa2_receive fa2_init.
+    cbn. apply FMap.find_remove.
+Qed.
+
 (**----------------- Assets Proofs -----------------**)
 Lemma balance_of_callbacks_with_balance_of {p chain ctx state req_addr req_token_id req acts} :
     req = 
@@ -274,5 +298,18 @@ Proof.
         + setoid_rewrite FMap.find_add. easy.
 Qed.
 
+Lemma cant_burn_more_than_supply {chain ctx prev_state owner token_id amount v} :
+    FMap.find token_id (prev_state.(assets).(token_total_supply)) = Some v -> 
+    v < amount ->
+    fa2_receive chain ctx prev_state (Some (Tokens (BurnTokens [{|
+    mint_burn_owner := owner ;
+    mint_burn_token_id := token_id ;
+    mint_burn_amount := amount
+    |}]))) = None.
+Proof.
+    intros. contract_simpl fa2_receive fa2_init. unfold fail_if_not_minter. destruct address_eqb; try easy.
+    destruct (get_balance_amt (owner, token_id) (ledger (assets prev_state)) <? amount); try easy. cbn.
+    setoid_rewrite H. destruct (v <? amount) eqn: E; try easy. rewrite N.ltb_ge in E. easy.
+Qed.
 
 End FA2_Multi_Asset.
