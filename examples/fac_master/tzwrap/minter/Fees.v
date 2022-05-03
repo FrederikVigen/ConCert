@@ -55,7 +55,8 @@ Definition generate_tx_destinations (ctx: ContractCallContext) (p : WithdrawToke
             dst_token_id := token_id;
             amount := available;
         |} in
-        acc
+        let new_ledger := FMap.remove (ctx.(ctx_from), key) s in
+        ((new_dst :: dsts), new_ledger) 
     ) ([], ledger) p.(tokens).
 
 Definition transfer_operation (fa2 from: Address) (dests : list TransferDestination): ActionBody :=
