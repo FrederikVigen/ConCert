@@ -267,7 +267,7 @@ Qed.
 
 (* UNWRAP SAFETY PROPERTIES *)
 (* If fees are below required. Unwrap should fail *)
-Lemma unwrap_erc20_below_min {chain ctx prev_state eth_address amount fees_amount erc20_dest} :
+Lemma unwrap_erc20_fees_below_min {chain ctx prev_state eth_address amount fees_amount erc20_dest} :
     fees_amount < Fees_Lib.bps_of amount prev_state.(governance).(erc20_unwrapping_fees) ->
     minter_receive chain ctx prev_state (Some (Unwrap (unwrap_erc20_entrypoint ({|
         erc_20 := eth_address;
