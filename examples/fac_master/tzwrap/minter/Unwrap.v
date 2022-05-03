@@ -92,7 +92,7 @@ Definition unwrap_erc721 (ctx : ContractCallContext) (p: UnwrapERC721Parameters)
     let assets := s.(assets) in
     let fees_storage := s.(fees) in
     let amountN := Z.to_N ctx.(ctx_amount) in
-    let ignore := check_nft_fees_high_enough amountN governance.(erc721_unwrapping_fees) in
+    do ignore <- check_nft_fees_high_enough amountN governance.(erc721_unwrapping_fees) ;
     let contract_address_opt := get_nft_contract p.(erc_721) assets.(erc721tokens) in
     match contract_address_opt with
     | Some contract_address => 

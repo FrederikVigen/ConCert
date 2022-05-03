@@ -139,6 +139,8 @@ Definition minter_init (chain : Chain) (ctx : ContractCallContext) (setup : Setu
 Definition minter_contract : Contract Setup EntryPoints State :=
 build_contract minter_init minter_receive.
 
+(*  UNWRAP PROOF *)
+
 (* Fees ledger should be updated correctly and correct burn and mint calls should be made *)
 Lemma unwrap_erc20_functionally_correct {chain ctx prev_state next_state eth_address amount fees_amount erc20_dest acts token_address v new_v} :
     (minter_receive chain ctx prev_state (Some (Unwrap (unwrap_erc20_entrypoint ({|
@@ -183,6 +185,7 @@ Proof.
     try inversion H; rewrite E2; easy. 
 Qed.
 
+(* UNWRAP SAFETY PROPERTIES *)
 (* If fees are below required. Unwrap should fail *)
 Lemma unwrap_erc20_fees_below_min {chain ctx prev_state eth_address amount fees_amount erc20_dest} :
     fees_amount < Fees_Lib.bps_of amount prev_state.(governance).(erc20_unwrapping_fees) ->
