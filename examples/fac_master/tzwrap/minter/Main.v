@@ -190,6 +190,27 @@ Proof.
         + unfold token_balance. setoid_rewrite FMap.find_remove. reflexivity.
 Qed.
 
+Lemma Withdraw_tokens_is_functionally_correct {chain ctx prev_state p next_state ops amount} :
+    token_balance prev_state.(fees).(fees_storage_tokens) ctx.(ctx_from) (p.(fa2_token), p.(wtp_token_id)) = amount ->
+    minter_receive chain ctx prev_state (Some (Fees (Withdraw_token p))) = Some (next_state, ops) ->
+    token_balance next_state.(fees).(fees_storage_tokens) ctx.(ctx_from) (p.(fa2_token), p.(wtp_token_id)) = amount - p.(wtp_amount) /\
+    ops = [act_call ctx.(ctx_contract_address) (N_to_amount 0) (serialize (
+        {|
+            from_ := p.(fa2_token);
+            txs := [{|
+                to_ := ctx.(ctx_from);
+                dst_token_id := p.(wtp_token_id);
+                amount := p.(wtp_amount)
+            |}]
+        |}))].
+Proof.
+    intros. contract_simpl minter_receive minter_init. split. 
+    - destruct (token_balance (fees_storage_tokens (fees prev_state)) (ctx_from ctx) (fa2_token p, wtp_token_id p) - wtp_amount p) eqn:E; cbn.
+        + unfold token_balance. setoid_rewrite FMap.find_remove. reflexivity.
+        + unfold token_balance. setoid_rewrite FMap.find_add. reflexivity.
+    - unfold transfer_operation. cbn. reflexivity.
+Qed.
+
 Lemma Withdraw_all_xtz_is_functionally_correct {chain ctx prev_state next_state ops amount} :
     xtz_balance prev_state.(fees).(fees_storage_xtz) ctx.(ctx_from) = amount ->
     minter_receive chain ctx prev_state (Some (Fees (Withdraw_all_xtz))) = Some (next_state, ops) ->
@@ -204,7 +225,28 @@ Proof.
       rewrite N.sub_diag. cbn. unfold xtz_balance. setoid_rewrite FMap.find_remove; try easy.
 Qed.
 
-
+Lemma Withdraw_xtz_is_functionally_correct {chain ctx prev_state next_state ops amount n} :
+    xtz_balance prev_state.(fees).(fees_storage_xtz) ctx.(ctx_from) = amount ->
+    minter_receive chain ctx prev_state (Some (Fees (Withdraw_xtz n))) = Some (next_state, ops) ->
+    xtz_balance next_state.(fees).(fees_storage_xtz) ctx.(ctx_from) = amount-n /\
+    (if amount =? 0 then ops = [] else 
+        ops = [act_transfer ctx.(ctx_from) (N_to_amount n)]). 
+Proof.
+    intros. contract_simpl minter_receive minter_init.
+    split.
+    - destruct (xtz_balance (fees_storage_xtz (fees prev_state)) (ctx_from ctx)) eqn:E. 
+        + cbn in H2. inversion H2. cbn. apply E.
+        + cbn in *. destruct (throwIf (address_is_contract (ctx_from ctx))); 
+          try easy. inversion H2. cbn. unfold xtz_balance. destruct n0 eqn:E2.
+            * cbn. setoid_rewrite FMap.find_add. reflexivity.
+            * destruct (Pos.sub_mask p0 p1); cbn.
+                -- setoid_rewrite FMap.find_remove. reflexivity.
+                -- setoid_rewrite FMap.find_add.  reflexivity.
+                -- setoid_rewrite FMap.find_remove. reflexivity.
+    - destruct (xtz_balance (fees_storage_xtz (fees prev_state)) (ctx_from ctx) =? 0) eqn:E in H2.
+        + inversion H2. now rewrite E.
+        + destruct (throwIf (address_is_contract (ctx_from ctx))); try easy. inversion H2. now rewrite E.
+Qed.
 
 (**----------------- Unwrap Proofs -----------------**)
 
