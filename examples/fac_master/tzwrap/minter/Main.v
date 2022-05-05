@@ -322,4 +322,21 @@ Proof.
     rewrite H. reflexivity.
 Qed.
 
+(**----------------- Oracle Proofs -----------------**)
+
+Lemma distribute_xtz_functionally_correct {chain ctx prev_state next_state hash_list} :
+    (xtz_balance prev_state.(fees).(fees_storage_xtz) ctx.(ctx_contract_address) = 0 ->
+    minter_receive chain ctx prev_state (Some (Oracle (Distribute_xtz hash_list))) = Some (next_state, []) ->
+    next_state = prev_state)
+    /\
+    (1 = 1).
+
+Proof.
+    split.
+    - intros. contract_simpl minter_receive minter_init; unfold distribute_xtz.
+    cbn in *. rewrite H. cbn. destruct prev_state. cbn. reflexivity.
+    - reflexivity.
+Qed.  
+     
+    
 End Main. 
