@@ -31,15 +31,18 @@ Definition transfer_xtz (addr: Address) (value: N) : option ActionBody :=
 
 Definition withdraw_xtz (ctx : ContractCallContext) (a : option N) (s : XTZLedger) : option (list ActionBody * XTZLedger) :=
     let available :=  xtz_balance s ctx.(ctx_from)  in 
-    do v <- a;
-    do _ <- throwIf (available <? v);
+    let value_opt := match a with
+    | Some v => if available <? v then Some v else None
+    | None => Some available
+    end in
+    do value <- value_opt ;
     if available =? 0 then Some ([], s)
     else 
-    do op <- transfer_xtz ctx.(ctx_from) v;
+    do op <- transfer_xtz ctx.(ctx_from) value;
     let new_d := 
-        if available - v =? 0
+        if available - value =? 0
         then FMap.remove ctx.(ctx_from) s
-        else FMap.update ctx.(ctx_from) (Some (available - v)) s
+        else FMap.update ctx.(ctx_from) (Some (available - value)) s
         in Some ([op], new_d).
 
 Definition tx_result : Type := list TransferDestination * TokenLedger.
