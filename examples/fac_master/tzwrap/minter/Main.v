@@ -236,6 +236,46 @@ Proof.
     intros. contract_simpl minter_receive minter_init. cbn in *. setoid_rewrite FMap.find_add in H0. easy.
 Qed.
 
+(**----------------- ContractAdmin Proofs -----------------**)
+Lemma set_administrator_correct {chain ctx prev_state next_state n} : 
+    minter_receive chain ctx prev_state (Some (ContractAdmin (SetAdministrator n))) = Some (next_state, []) ->
+    next_state.(admin).(administrator) = n.
+Proof.
+    intros. contract_simpl minter_receive minter_init. easy.
+Qed.
+
+Lemma set_signer_correct {chain ctx prev_state next_state n} : 
+    minter_receive chain ctx prev_state (Some (ContractAdmin (SetSigner n))) = Some (next_state, []) ->
+    next_state.(admin).(signer) = n.
+Proof.
+    intros. contract_simpl minter_receive minter_init. easy.
+Qed.
+
+Lemma set_oracle_correct {chain ctx prev_state next_state n} : 
+    minter_receive chain ctx prev_state (Some (ContractAdmin (SetOracle n))) = Some (next_state, []) ->
+    next_state.(admin).(oracle) = n.
+Proof.
+    intros. contract_simpl minter_receive minter_init. easy.
+Qed.
+
+Lemma confirm_new_minter_admin_correct {chain ctx addr prev_state next_state} :
+    prev_state.(admin).(pending_admin) = Some addr ->
+    minter_receive chain ctx prev_state (Some (ContractAdmin (ConfirmMinterAdmin))) = Some (next_state, []) ->
+    next_state.(admin).(pending_admin) = None ->
+    next_state.(admin).(administrator) = addr.
+Proof.
+    intros. contract_simpl minter_receive minter_init. cbn in *. unfold confirm_new_minter_admin in H3.
+    rewrite H in H3. generalize dependent H3. destruct_address_eq; intros; cbn in *; try easy.
+    rewrite <- e in H3. inversion H3. easy.
+Qed.
+
+Lemma pause_contract_correct {chain ctx prev_state next_state b} :
+    minter_receive chain ctx prev_state (Some (ContractAdmin (PauseContract b))) = Some (next_state, []) ->
+    next_state.(admin).(paused) = b.
+Proof.
+    intros. contract_simpl minter_receive minter_init. easy.
+Qed.
+
 (**----------------- Fees Proofs -----------------**)
 Lemma Withdraw_all_tokens_is_functionally_correct {chain ctx prev_state p next_state ops token_id amount} :
     p.(tokens) = [token_id] ->
