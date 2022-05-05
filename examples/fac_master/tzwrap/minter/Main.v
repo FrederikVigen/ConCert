@@ -183,6 +183,58 @@ Proof.
         unfold bps_of in *; rewrite <- H8; cbn; easy.
 Qed.
 
+Lemma add_erc20_functionally_correct {chain ctx prev_state next_state eth_contract token_address acts ta} : 
+    minter_receive chain ctx prev_state (Some (Signer 
+        (Add_erc20 {|
+            eth_contract_erc20 := eth_contract;
+            token_address := token_address;
+        |}))) = Some (next_state, acts) ->
+    FMap.find eth_contract next_state.(assets).(erc20tokens) = Some ta ->
+    ta = token_address.
+Proof.
+    intros. contract_simpl minter_receive minter_init. cbn in *. setoid_rewrite FMap.find_add in H0. easy.
+Qed.
+
+Lemma mint_erc721_functionally_correct {chain ctx prev_state next_state erc721Address event_id
+    owner amount acts token_address v new_v n token_id contract_address } : 
+    minter_receive chain ctx prev_state (Some (Signer 
+        (Mint_erc721 {|
+            erc721 := erc721Address;
+            event_id_erc721 := event_id;
+            owner_erc721 := owner;
+            token_id_erc721 := token_id
+        |}))) = Some (next_state, acts) ->
+    ctx.(ctx_amount) = amount ->
+    prev_state.(governance).(erc721_wrapping_fees) = n ->
+    FMap.find erc721Address prev_state.(assets).(erc721tokens) = Some token_address ->
+    ctx.(ctx_contract_address) = contract_address ->
+    FMap.find contract_address prev_state.(fees).(fees_storage_xtz) = Some v ->
+    FMap.find contract_address next_state.(fees).(fees_storage_xtz) = Some new_v ->
+    v + (Z.to_N amount) = new_v /\
+    (*Amount to mint to owner*)
+    let mintBurnToOwner := {|
+        mint_burn_owner := owner;
+        mint_burn_token_id := token_id;
+        mint_burn_amount := 1
+    |} in
+    acts = [act_call token_address 0 (serialize (MintTokens [mintBurnToOwner]))].
+Proof.
+    intros. contract_simpl minter_receive minter_init. cbn in *. split.
+    - setoid_rewrite FMap.find_add in H5. setoid_rewrite H4 in H5. inversion H5. easy.
+    - unfold get_nft_contract in H10. easy.
+Qed.
+
+Lemma add_erc721_functionally_correct {chain ctx prev_state next_state eth_contract token_contract acts tc} : 
+    minter_receive chain ctx prev_state (Some (Signer 
+        (Add_erc721 {|
+            eth_contract_erc721 := eth_contract;
+            token_contract := token_contract;
+        |}))) = Some (next_state, acts) ->
+    FMap.find eth_contract next_state.(assets).(erc721tokens) = Some tc ->
+    tc = token_contract.
+Proof.
+    intros. contract_simpl minter_receive minter_init. cbn in *. setoid_rewrite FMap.find_add in H0. easy.
+Qed.
 
 (**----------------- Fees Proofs -----------------**)
 Lemma Withdraw_all_tokens_is_functionally_correct {chain ctx prev_state p next_state ops token_id amount} :
