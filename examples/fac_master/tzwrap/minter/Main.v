@@ -394,4 +394,15 @@ Proof.
     rewrite H. reflexivity.
 Qed.
 
+(**----------------- SignerOps Proofs -----------------**)
+
+(* The new signer gets updated correctly *)
+Lemma signer_ops_functionally_correct {chain ctx prev_state next_state signer addr} :
+    minter_receive chain ctx prev_state (Some (Signer_Ops (set_payment_address {| sparam_signer:= signer; payment_address:=addr |}))) = Some(next_state, []) ->
+    FMap.find signer next_state.(fees).(fees_storage_signers) = Some addr.
+Proof.
+    intros. contract_simpl minter_receive minter_init. cbn.
+    rewrite FMap.find_add. reflexivity.
+Qed.
+
 End Main. 
