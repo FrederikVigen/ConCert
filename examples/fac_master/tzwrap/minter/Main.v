@@ -143,7 +143,7 @@ Definition minter_contract : Contract Setup EntryPoints State :=
 
 (**----------------- Signer Proofs -----------------**)
 Lemma mint_erc20_functionally_correct {chain ctx prev_state next_state erc20Address event_id
-    owner amount acts token_address v new_v n} : 
+    owner amount acts token_address v new_v n feesVal} : 
     minter_receive chain ctx prev_state (Some (Signer 
         (Mint_erc20 {|
             erc20 := erc20Address;
@@ -155,14 +155,126 @@ Lemma mint_erc20_functionally_correct {chain ctx prev_state next_state erc20Addr
     FMap.find erc20Address prev_state.(assets).(erc20tokens) = Some token_address ->
     FMap.find (ctx.(ctx_contract_address), token_address) prev_state.(fees).(fees_storage_tokens) = Some v ->
     FMap.find (ctx.(ctx_contract_address), token_address) next_state.(fees).(fees_storage_tokens) = Some new_v ->
-    v + (amount * n /10000) = new_v.
+    feesVal = (amount * n /10000) ->
+    v + feesVal = new_v /\
+    (*Amount to mint to owner*)
+    let mintBurnToOwner := {|
+        mint_burn_owner := owner;
+        mint_burn_token_id := snd token_address;
+        mint_burn_amount := amount - feesVal
+    |} in
+    (*Fees to mint to contract itself*)
+    let mintBurnFees := {|
+        mint_burn_owner := ctx.(ctx_contract_address);
+        mint_burn_token_id := snd token_address;
+        mint_burn_amount := feesVal
+    |} in
+    (*If no fees to mint, dont include it in the actions*)
+    if 0 <?  feesVal then
+      acts = [act_call (fst token_address) 0 (serialize (MintTokens [mintBurnToOwner ; mintBurnFees]))]
+    else 
+     acts = [act_call (fst token_address) 0 (serialize (MintTokens [mintBurnToOwner]))].
 Proof.
-    intros. contract_simpl minter_receive minter_init. cbn in *. unfold Fees_Lib.token_balance in H2.
-    unfold get_fa2_token_id in H9. rewrite H9 in H1. inversion H1. subst. 
-    setoid_rewrite FMap.find_add in H3. unfold Fees_Lib.token_balance in H3.
-    rewrite H2 in H3. cbn in *. unfold Fees_Lib.bps_of in H3. inversion H3. easy.
+    intros. generalize dependent H4. contract_simpl minter_receive minter_init. intro. cbn in *. split.
+    - unfold get_fa2_token_id in H9. setoid_rewrite H9 in H1. inversion H1. subst. unfold Fees_Lib.token_balance in H2.
+        setoid_rewrite FMap.find_add in H3. unfold Fees_Lib.token_balance in H3.
+        setoid_rewrite H2 in H3. cbn in *. unfold Fees_Lib.bps_of in H3. inversion H3. easy.
+    - unfold get_fa2_token_id in H9. setoid_rewrite H9 in H1. inversion H1. destruct feesVal;
+        unfold bps_of in *; rewrite <- H8; cbn; easy.
 Qed.
 
+Lemma add_erc20_functionally_correct {chain ctx prev_state next_state eth_contract token_address acts ta} : 
+    minter_receive chain ctx prev_state (Some (Signer 
+        (Add_erc20 {|
+            eth_contract_erc20 := eth_contract;
+            token_address := token_address;
+        |}))) = Some (next_state, acts) ->
+    FMap.find eth_contract next_state.(assets).(erc20tokens) = Some ta ->
+    ta = token_address.
+Proof.
+    intros. contract_simpl minter_receive minter_init. cbn in *. setoid_rewrite FMap.find_add in H0. easy.
+Qed.
+
+Lemma mint_erc721_functionally_correct {chain ctx prev_state next_state erc721Address event_id
+    owner amount acts token_address v new_v n token_id contract_address } : 
+    minter_receive chain ctx prev_state (Some (Signer 
+        (Mint_erc721 {|
+            erc721 := erc721Address;
+            event_id_erc721 := event_id;
+            owner_erc721 := owner;
+            token_id_erc721 := token_id
+        |}))) = Some (next_state, acts) ->
+    ctx.(ctx_amount) = amount ->
+    prev_state.(governance).(erc721_wrapping_fees) = n ->
+    FMap.find erc721Address prev_state.(assets).(erc721tokens) = Some token_address ->
+    ctx.(ctx_contract_address) = contract_address ->
+    FMap.find contract_address prev_state.(fees).(fees_storage_xtz) = Some v ->
+    FMap.find contract_address next_state.(fees).(fees_storage_xtz) = Some new_v ->
+    v + (Z.to_N amount) = new_v /\
+    (*Amount to mint to owner*)
+    let mintBurnToOwner := {|
+        mint_burn_owner := owner;
+        mint_burn_token_id := token_id;
+        mint_burn_amount := 1
+    |} in
+    acts = [act_call token_address 0 (serialize (MintTokens [mintBurnToOwner]))].
+Proof.
+    intros. contract_simpl minter_receive minter_init. cbn in *. split.
+    - setoid_rewrite FMap.find_add in H5. setoid_rewrite H4 in H5. inversion H5. easy.
+    - unfold get_nft_contract in H10. easy.
+Qed.
+
+Lemma add_erc721_functionally_correct {chain ctx prev_state next_state eth_contract token_contract acts tc} : 
+    minter_receive chain ctx prev_state (Some (Signer 
+        (Add_erc721 {|
+            eth_contract_erc721 := eth_contract;
+            token_contract := token_contract;
+        |}))) = Some (next_state, acts) ->
+    FMap.find eth_contract next_state.(assets).(erc721tokens) = Some tc ->
+    tc = token_contract.
+Proof.
+    intros. contract_simpl minter_receive minter_init. cbn in *. setoid_rewrite FMap.find_add in H0. easy.
+Qed.
+
+(**----------------- ContractAdmin Proofs -----------------**)
+Lemma set_administrator_correct {chain ctx prev_state next_state n} : 
+    minter_receive chain ctx prev_state (Some (ContractAdmin (SetAdministrator n))) = Some (next_state, []) ->
+    next_state.(admin).(administrator) = n.
+Proof.
+    intros. contract_simpl minter_receive minter_init. easy.
+Qed.
+
+Lemma set_signer_correct {chain ctx prev_state next_state n} : 
+    minter_receive chain ctx prev_state (Some (ContractAdmin (SetSigner n))) = Some (next_state, []) ->
+    next_state.(admin).(signer) = n.
+Proof.
+    intros. contract_simpl minter_receive minter_init. easy.
+Qed.
+
+Lemma set_oracle_correct {chain ctx prev_state next_state n} : 
+    minter_receive chain ctx prev_state (Some (ContractAdmin (SetOracle n))) = Some (next_state, []) ->
+    next_state.(admin).(oracle) = n.
+Proof.
+    intros. contract_simpl minter_receive minter_init. easy.
+Qed.
+
+Lemma confirm_new_minter_admin_correct {chain ctx addr prev_state next_state} :
+    prev_state.(admin).(pending_admin) = Some addr ->
+    minter_receive chain ctx prev_state (Some (ContractAdmin (ConfirmMinterAdmin))) = Some (next_state, []) ->
+    next_state.(admin).(pending_admin) = None ->
+    next_state.(admin).(administrator) = addr.
+Proof.
+    intros. contract_simpl minter_receive minter_init. cbn in *. unfold confirm_new_minter_admin in H3.
+    rewrite H in H3. generalize dependent H3. destruct_address_eq; intros; cbn in *; try easy.
+    rewrite <- e in H3. inversion H3. easy.
+Qed.
+
+Lemma pause_contract_correct {chain ctx prev_state next_state b} :
+    minter_receive chain ctx prev_state (Some (ContractAdmin (PauseContract b))) = Some (next_state, []) ->
+    next_state.(admin).(paused) = b.
+Proof.
+    intros. contract_simpl minter_receive minter_init. easy.
+Qed.
 
 (**----------------- Fees Proofs -----------------**)
 Lemma Withdraw_all_tokens_is_functionally_correct {chain ctx prev_state p next_state ops token_id amount} :
@@ -351,5 +463,16 @@ Proof.
     unfold Fees_Lib.check_nft_fees_high_enough. unfold throwIf. rewrite <- N.ltb_lt in H. rewrite H. reflexivity.
 Qed.
 
+
+(**----------------- SignerOps Proofs -----------------**)
+
+(* The new signer gets updated correctly *)
+Lemma signer_ops_functionally_correct {chain ctx prev_state next_state signer addr} :
+    minter_receive chain ctx prev_state (Some (Signer_Ops (set_payment_address {| sparam_signer:= signer; payment_address:=addr |}))) = Some(next_state, []) ->
+    FMap.find signer next_state.(fees).(fees_storage_signers) = Some addr.
+Proof.
+    intros. contract_simpl minter_receive minter_init. cbn.
+    rewrite FMap.find_add. reflexivity.
+Qed.
 
 End Main. 

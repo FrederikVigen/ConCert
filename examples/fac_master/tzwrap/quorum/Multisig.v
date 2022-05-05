@@ -252,7 +252,8 @@ Section Proofs.
 Context {BaseTypes : ChainBase}.
 
 Lemma admin_fail_if_amount {ctx chain action state} :
-    Z.lt 0 ctx.(ctx_amount) -> multisig_receive chain ctx state (Some (Admin action)) = None.
+    Z.lt 0 ctx.(ctx_amount) -> 
+    multisig_receive chain ctx state (Some (Admin action)) = None.
 Proof.
     intros. cbn. unfold fail_if_amount. destruct (0 <? ctx_amount ctx)%Z eqn: amount.
     - reflexivity.
@@ -260,7 +261,8 @@ Proof.
 Qed.
 
 Lemma fees_fail_if_amount {ctx chain fees_entrypoints state} :
-    Z.lt 0 ctx.(ctx_amount) -> multisig_receive chain ctx state (Some (Fees fees_entrypoints)) = None.
+    Z.lt 0 ctx.(ctx_amount) -> 
+    multisig_receive chain ctx state (Some (Fees fees_entrypoints)) = None.
 Proof.
     intros. cbn. unfold fail_if_amount. destruct (0 <? ctx_amount ctx)%Z eqn: amount.
     - reflexivity.
@@ -268,7 +270,8 @@ Proof.
 Qed.
 
 Lemma set_signer_payment_address_fail_if_amount {ctx chain payment_addres_parameter state} :
-    Z.lt 0 ctx.(ctx_amount) -> multisig_receive chain ctx state (Some (Set_signer_payment_address payment_addres_parameter)) = None.
+    Z.lt 0 ctx.(ctx_amount) -> 
+    multisig_receive chain ctx state (Some (Set_signer_payment_address payment_addres_parameter)) = None.
 Proof.
     intros. cbn. unfold fail_if_amount. destruct (0 <? ctx_amount ctx)%Z eqn: amount.
     - reflexivity.
@@ -276,14 +279,12 @@ Proof.
 Qed.
 
 Lemma admin_fail_if_not_admin {ctx chain action state} :
-    Z.gt 0 ctx.(ctx_amount) ->
     ctx.(ctx_from) <> state.(admin) -> 
     action <> ConfirmAdmin ->
     multisig_receive chain ctx state (Some (Admin action)) = None.
 Proof.
-    intros. cbn. unfold fail_if_amount. destruct (0 <? ctx_amount ctx)%Z.
-    - auto.
-    - cbn. unfold apply_admin. destruct action; unfold fail_if_not_admin; destruct_address_eq; try easy; cbn; reflexivity.
+    intros. contract_simpl multisig_receive multisig_init. destruct (fail_if_amount ctx); try easy.
+    unfold apply_admin. destruct action; unfold fail_if_not_admin; destruct_address_eq; try easy; cbn; reflexivity.
 Qed.
 
 Lemma check_new_quorum_threshold_not_met {t signerMap} :
@@ -318,8 +319,8 @@ Proof.
     intros. unfold check_signature. cbn. rewrite check_signature_aux. unfold throwIf.
         induction sigs; try easy.
         destruct (N.of_nat (Datatypes.length (a :: sigs)) <? threshold) eqn:E.
-        + apply N.ltb_lt in E. cbn in H. inversion H. cbn in E. easy.
-        + reflexivity.
+        - apply N.ltb_lt in E. cbn in H. inversion H. cbn in E. easy.
+        - reflexivity.
 Qed.
 
 
