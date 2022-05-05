@@ -294,5 +294,32 @@ Proof.
     unfold Fees_Lib.check_nft_fees_high_enough. unfold throwIf. rewrite <- N.ltb_lt in H. rewrite H. reflexivity.
 Qed.
 
+(* Trying to unwrap non existent token *)
+Lemma unwrap_erc20_non_existent_token {chain ctx prev_state eth_address amount fees_amount erc20_dest} :
+    get_fa2_token_id eth_address prev_state.(assets).(erc20tokens) = None  ->
+    minter_receive chain ctx prev_state (Some (Unwrap (unwrap_erc20_entrypoint ({|
+        erc_20 := eth_address;
+        up_amount := amount;
+        up_fees := fees_amount;
+        up_erc20_destination := erc20_dest
+    |})))) = None.
+Proof.
+    intros. contract_simpl minter_receive minter_init. destruct (fail_if_paused (admin prev_state)); try easy.
+    destruct (fail_if_amount ctx); try easy. unfold unwrap_erc20. cbn in *. rewrite H. reflexivity.
+Qed.
+
+(* Trying to unwrap non existent token *)
+Lemma unwrap_erc721_non_existent_token {chain ctx prev_state eth_address erc721_dest token_id} :
+    get_nft_contract eth_address prev_state.(assets).(erc721tokens) = None ->
+    minter_receive chain ctx prev_state (Some (Unwrap (unwrap_erc721_entrypoint ({|
+        erc_721 := eth_address;
+        up_token_id := token_id;
+        up_erc721_destination := erc721_dest
+    |})))) = None.
+Proof.
+    intros. contract_simpl minter_receive minter_init. destruct (fail_if_paused (admin prev_state)); try easy.
+    destruct (check_nft_fees_high_enough (Z.to_N (ctx_amount ctx)) (erc721_unwrapping_fees (governance prev_state))); try easy.
+    rewrite H. reflexivity.
+Qed.
 
 End Main. 
