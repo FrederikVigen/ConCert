@@ -108,7 +108,7 @@ Definition check_new_quorum (p: (N * FMap SignerId N)) : option unit :=
     let (t, signers) := p in
     if N_of_nat (length (FMap.elements signers)) <? t then None else
     let unique := fin_maps.map_fold
-        (fun (key: SignerId) (elem: N) (acc : FMap SignerId unit) => FMap.add key tt acc)
+        (fun (key: SignerId) (elem: N) (acc : FMap N unit) => FMap.add elem tt acc)
         FMap.empty
         signers in
     if N_of_nat (length (FMap.elements unique)) =? N_of_nat (length (FMap.elements signers)) then Some tt else None.
@@ -324,12 +324,13 @@ Proof.
 Qed.
 
 
-(* (* Lemma fmap_elems_empty : forall (f: FMap SignerId unit), 
+(*
+Lemma fmap_elems_empty : forall (f: FMap SignerId unit), 
      [] = FMap.elements f -> f = FMap.empty.
 Proof.
-    intros. induction f. cbn in H.  *)
+    intros. induction f. cbn in H. *)
 
-
+(*
 Lemma add_unique_aux {signers} :
     Permutation (FMap.elements (fin_maps.map_fold
         (fun (key : SignerId) (_ : N) (acc : FMap SignerId unit) =>
@@ -339,8 +340,9 @@ Proof.
     split.
         - intros. admit.
         - intros. apply elements_of_list. inversion H.
-            (* + cbn. *)
+            (* + cbn. *) *)
 
+(*
 Lemma check_new_quorum_is_correct {t signers} :
     NoDup (FMap.elements signers) /\ t <= N.of_nat (length (FMap.elements signers)) ->
     check_new_quorum (t, signers) = Some tt.
@@ -348,8 +350,21 @@ Proof.
     intros. inversion H. cbn. 
         destruct (N.of_nat (Datatypes.length (FMap.elements signers)) <? t) eqn:E.
         - apply N.ltb_lt in E. easy.
-        -  *)
+        - admit. *)
         
+Lemma check_new_quorum_functionally_correct {chain ctx prev_state threshold signers next_state} :
+    multisig_receive chain ctx prev_state (Some (Admin (ChangeQuorum  (threshold, signers)))) = Some (next_state, []) ->
+    threshold <= N.of_nat (length (FMap.elements signers)) /\
+    NoDup (FMap.elements signers).
+
+
+Proof.
+    intros. contract_simpl multisig_receive multisig_init. split.
+    - rewrite <- N.ltb_ge. easy.
+    - induction (FMap.elements signers).
+        + apply NoDup_nil.
+        + rewrite NoDup_cons_iff. split.
+            ++ Admitted.
 
 
 End Proofs.
