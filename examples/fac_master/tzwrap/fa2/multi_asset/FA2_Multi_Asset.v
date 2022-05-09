@@ -103,6 +103,13 @@ Proof.
     intros. contract_simpl fa2_receive fa2_init. easy.
 Qed.
 
+Lemma set_new_minter_functionally_correct {ctx chain prev_state next_state new_minter} :
+    fa2_receive chain ctx prev_state (Some (Admin (Token_admin (Set_minter new_minter)))) = Some (next_state, []) ->
+    next_state.(admin).(tas_minter) = new_minter.
+Proof.
+    intros. contract_simpl fa2_receive fa2_init. easy.
+Qed.
+
 Lemma confirm_admin_functionally_correct {ctx chain prev_state next_state} :
     fa2_receive chain ctx prev_state (Some (Admin (Token_admin (Confirm_admin)))) = Some (next_state, []) ->
     next_state.(admin).(tas_pending_admin) = None /\ next_state.(admin).(tas_admin) = ctx.(ctx_from).
