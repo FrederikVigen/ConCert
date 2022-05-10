@@ -103,6 +103,7 @@ Proof.
     intros. contract_simpl fa2_receive fa2_init. easy.
 Qed.
 
+
 Lemma set_new_minter_functionally_correct {ctx chain prev_state next_state new_minter} :
     fa2_receive chain ctx prev_state (Some (Admin (Token_admin (Set_minter new_minter)))) = Some (next_state, []) ->
     next_state.(admin).(tas_minter) = new_minter.
@@ -304,6 +305,13 @@ Proof.
         cbn; unfold get_balance_amt.
         + setoid_rewrite FMap.find_remove. easy.
         + setoid_rewrite FMap.find_add. easy.
+Qed.
+
+Lemma only_minter_can_burn {chain ctx prev_state burnList} :
+    (ctx.(ctx_from) =? prev_state.(admin).(tas_minter))%address = false ->
+    fa2_receive chain ctx prev_state (Some (Tokens (BurnTokens burnList))) = None.
+Proof.
+    intros. contract_simpl fa2_receive fa2_init. unfold fail_if_not_minter. rewrite H. reflexivity.
 Qed.
 
 Lemma cant_burn_more_than_supply {chain ctx prev_state owner token_id amount v} :
