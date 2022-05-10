@@ -184,8 +184,8 @@ Definition set_payment_address_payload :Type := T1 * (N * (Address * Address)).
 Definition set_payment_address (ctx : ContractCallContext) (p : PaymentAddressParameter) (s : State) : option Return :=
     do k <- FMap.find p.(pap_signer_id) s.(signers);
     let signer_counter := match FMap.find p.(pap_signer_id) s.(counters) with
-    | Some n => N.of_nat n
-    | None => 0
+    | Some n => n
+    | None => 0%nat
     end in
 
     let payload := ((ctx.(ctx_contract_address)), (signer_counter, (p.(pap_minter_contract), ctx.(ctx_from)))) in
@@ -193,7 +193,7 @@ Definition set_payment_address (ctx : ContractCallContext) (p : PaymentAddressPa
     if Crypto.check_signature k p.(pap_signature) payload
     then
         let call := serialize (set_payment_address {| sparam_signer := Crypto.hash_key k; payment_address := ctx.(ctx_from) |}) in
-        Some (s<|signers:= FMap.update p.(pap_signer_id) (Some (signer_counter + 1)) s.(signers) |>, [act_call p.(pap_minter_contract) 0 call])
+        Some (s<|counters:= FMap.update p.(pap_signer_id) (Some (signer_counter + 1%nat)%nat)  s.(counters)|>, [act_call p.(pap_minter_contract) 0 call])
     else
         None.
 
@@ -247,7 +247,7 @@ build_contract multisig_init multisig_receive.
 
 End Multisig.
 
-Section Proofs.
+Section SafetyProofs.
 
 Context {BaseTypes : ChainBase}.
 
@@ -296,13 +296,6 @@ Proof.
     - apply N.ltb_ge in length. easy.
 Qed.
 
-Lemma confirm_admin_correct {ctx chain state state'} :
-    multisig_receive chain ctx state (Some (Admin ConfirmAdmin)) = Some (state', []) ->
-    state'.(pending_admin) = None /\ state'.(admin) = ctx.(ctx_from).
-Proof.
-    intros. contract_simpl multisig_receive multisig_init. easy.
-Qed.
-
 Lemma check_signature_aux {sigs} :
     fold_right 
     (fun (elem : SignerId * N) (acc : N) => let (_, _) := elem in acc + 1) 
@@ -323,42 +316,134 @@ Proof.
         - reflexivity.
 Qed.
 
+End SafetyProofs.
 
-(*
-Lemma fmap_elems_empty : forall (f: FMap SignerId unit), 
-     [] = FMap.elements f -> f = FMap.empty.
+Section AdminProofs.
+Context {BaseTypes : ChainBase}.
+
+Lemma change_quorum_functionally_correct {chain ctx prev_state t new_signers next_state} :
+    multisig_receive chain ctx prev_state (Some (Admin (ChangeQuorum  (t, new_signers)))) = Some (next_state, []) ->
+    (
+    t <= N.of_nat (length (FMap.elements new_signers))
+    /\
+    next_state.(threshold) = t
+    /\
+    next_state.(signers) = new_signers
+    ).
 Proof.
-    intros. induction f. cbn in H. *)
-
-(*
-Lemma add_unique_aux {signers} :
-    Permutation (FMap.elements (fin_maps.map_fold
-        (fun (key : SignerId) (_ : N) (acc : FMap SignerId unit) =>
-        FMap.add key tt acc) FMap.empty signers)) (FMap.elements signers).
-        (* <-> NoDup (FMap.elements signers). *)
-Proof.
-    split.
-        - intros. admit.
-        - intros. apply elements_of_list. inversion H.
-            (* + cbn. *) *)
-
-(*
-Lemma check_new_quorum_is_correct {t signers} :
-    NoDup (FMap.elements signers) /\ t <= N.of_nat (length (FMap.elements signers)) ->
-    check_new_quorum (t, signers) = Some tt.
-Proof.
-    intros. inversion H. cbn. 
-        destruct (N.of_nat (Datatypes.length (FMap.elements signers)) <? t) eqn:E.
-        - apply N.ltb_lt in E. easy.
-        - admit. *)
-        
-Lemma check_new_quorum_functionally_correct {chain ctx prev_state threshold signers next_state} :
-    multisig_receive chain ctx prev_state (Some (Admin (ChangeQuorum  (threshold, signers)))) = Some (next_state, []) ->
-    threshold <= N.of_nat (length (FMap.elements signers)).
-
-
-Proof.
-    intros. contract_simpl multisig_receive multisig_init. rewrite <- N.ltb_ge. easy.
+    intros. contract_simpl multisig_receive multisig_init. split. 
+    - rewrite <- N.ltb_ge. easy.
+    - split; try easy.  
 Qed.
 
-End Proofs.
+Lemma change_thresgold_functionally_correct {chain ctx prev_state t next_state} :
+    multisig_receive chain ctx prev_state (Some (Admin (ChangeThreshold  t))) = Some (next_state, []) ->
+    next_state.(threshold) = t.
+Proof.
+    intros. contract_simpl multisig_receive multisig_init. easy.  
+Qed.
+
+Lemma set_admin_functionally_correct {chain ctx prev_state a next_state} :
+    multisig_receive chain ctx prev_state (Some (Admin (SetAdmin  a))) = Some (next_state, []) ->
+    next_state.(pending_admin) = Some a.
+Proof.
+    intros. contract_simpl multisig_receive multisig_init. easy.   
+Qed.
+
+Lemma confirm_admin_correct {ctx chain state state'} :
+    multisig_receive chain ctx state (Some (Admin ConfirmAdmin)) = Some (state', []) ->
+    state'.(pending_admin) = None /\ state'.(admin) = ctx.(ctx_from).
+Proof.
+    intros. contract_simpl multisig_receive multisig_init. easy.
+Qed.
+
+End AdminProofs.
+
+Section MinterProofs.
+Open Scope N_scope.
+Context {BaseTypes : ChainBase}.
+
+Lemma apply_minter_functionally_correct {chain ctx prev_state next_state signer_action acts} :
+    multisig_receive chain ctx prev_state (Some (Minter signer_action)) =
+    Some (next_state, acts) ->
+    (* Creating correct contract call *)
+    let action := signer_action.(action) in
+    acts = [act_call action.(target) ctx.(ctx_amount) (serialize action.(entrypoint))]
+    /\
+    (* State should not have been changed *)
+    next_state = prev_state.
+Proof.
+    intros. contract_simpl multisig_receive multisig_init. easy.
+Qed.
+
+Lemma apply_minter_fails_if_below_threshold {chain ctx prev_state signer_action sigs} :
+    signer_action.(signatures) = sigs ->
+    N_of_nat (length sigs) < prev_state.(threshold) ->
+    multisig_receive chain ctx prev_state (Some (Minter signer_action)) = None.
+Proof.
+    intros. contract_simpl multisig_receive multisig_init. destruct (check_threshold (signatures signer_action) (threshold prev_state)); try easy.
+    unfold check_signature. cbn. rewrite H. rewrite <- N.ltb_lt in H0. rewrite check_signature_aux. rewrite H0. easy.
+Qed. 
+
+End MinterProofs.
+
+Section FeesProofs.
+Context {BaseTypes : ChainBase}.
+
+(* State should not be changed and calls should be made to contracts *)
+Lemma fees_functionally_correct {chain ctx prev_state next_state acts entrypoint} :
+    multisig_receive chain ctx prev_state (Some (Fees entrypoint)) = Some (next_state, acts) ->
+    match entrypoint with
+    | Distribute_tokens_with_quorum param => 
+        (* State not changed *)
+        prev_state = next_state /\
+        (* Call should be to minter contract and 0 amount *)
+        exists msg, acts = [(act_call param.(dtp_minter_contract) 0 msg)]
+    | Distribute_xtz_with_quorum addr => 
+        (* State not changed *)
+        prev_state = next_state /\
+        (* Call should be to correct target and 0 amount *)
+        exists msg, acts = [(act_call addr 0 msg)]
+    end.
+Proof.
+    (* We assume that the messages of the calls are correct by inspecting the code *)
+    intros. contract_simpl multisig_receive multisig_init. unfold fees_main in H. destruct entrypoint; try easy.
+    - split; try easy. exists (serialize
+    (Distribute_tokens
+       {|
+       dp_signers := signers_key_hash prev_state;
+       dp_tokens := dtp_tokens param |})).
+       easy.
+    - split; try easy. exists (serialize (Distribute_xtz (signers_key_hash prev_state))). easy.
+Qed.  
+End FeesProofs.
+
+Section SetSignerPaymentAddressProofs.
+Context {BaseTypes : ChainBase}.
+Open Scope nat.
+
+Lemma set_signer_payment_address_functionally_correct {chain ctx prev_state next_state param acts n new_n k} :
+    multisig_receive chain ctx prev_state (Some (Set_signer_payment_address param)) = Some (next_state, acts) ->
+    (
+        (* Counter is increased by 1 *)
+        (
+            FMap.find param.(pap_signer_id) prev_state.(counters) = Some n ->
+            FMap.find param.(pap_signer_id) next_state.(counters) = Some new_n ->
+            new_n = n + 1
+        )
+        
+    /\
+        (* Correct call to minter is made *)
+        (
+            FMap.find param.(pap_signer_id) prev_state.(signers) = Some k ->
+            let call := serialize (Signer_Ops_Interface.set_payment_address {| sparam_signer := Crypto.hash_key k; payment_address := ctx.(ctx_from) |}) in
+            acts = [act_call param.(pap_minter_contract) 0 call]
+        )
+    ).
+Proof.
+    intros. contract_simpl multisig_receive multisig_init. cbn in *. split.
+    - intros. rewrite H in H2. rewrite FMap.find_add in H2. easy.
+    - easy. 
+Qed.
+    
+End SetSignerPaymentAddressProofs.
