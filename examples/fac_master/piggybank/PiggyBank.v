@@ -2,6 +2,7 @@ Require Import Extras.
 Require Import Automation.
 Require Import Serializable.
 Require Import Blockchain.
+From ConCert.Execution Require Import ContractCommon.
 
 From Coq Require Import Morphisms ZArith Basics.
 From Coq Require Import List.
@@ -65,8 +66,8 @@ Section PiggyBank.
        end.
 
   (** We initialize the contract state with [init_value] and set [owner] to the address from which the contract was deployed *)
-  Definition piggyBank_init (chain : Chain) (ctx : ContractCallContext) (init_value : Amount) : option State :=
-  Some {| balance := init_value ;
+  Definition piggyBank_init (chain : Chain) (ctx : ContractCallContext) (_ : Amount) : option State :=
+  Some {| balance := 0 ;
           owner := ctx.(ctx_from);
           piggyState := Intact |}.
 
@@ -144,5 +145,22 @@ Section SafetyProperties.
     intros H H1. destruct prev_state. cbn in *. rewrite H in H1. destruct (0 <? ctx_amount ctx) eqn:E; try easy.
     inversion H1. cbn in *. apply Z.ltb_lt in E; omega.
   Qed. 
-    
+
+  Lemma balance_always_positive : forall bstate caddr,
+    reachable bstate ->
+    env_contracts bstate caddr = Some (piggyBank_contract : WeakContract) ->
+    exists cstate,
+      contract_state bstate caddr = Some cstate
+      /\ 0 <= cstate.(balance).
+  Proof.
+    intros * reach deployed.
+    apply (lift_contract_state_prop piggyBank_contract); try easy.
+    - cbn. intros. unfold piggyBank_init in H. inversion H. cbn in *. easy.
+    - cbn. intros. unfold piggyBank_receive in H0. destruct msg; try easy.
+    unfold piggyBank in H0. destruct m. 
+    + contract_simpl piggyBank_receive piggyBank_init. destruct cstate, piggyState0; try easy. 
+    inversion H0. cbn in *. apply Z.ltb_lt in H1. omega.
+    + destruct cstate, piggyState0; try easy. destruct (address_eqb ctx.(ctx_from) owner0); try easy.
+    inversion H0. cbn in *. easy.
+  Qed. 
 End SafetyProperties.
