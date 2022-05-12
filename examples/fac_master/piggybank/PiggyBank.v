@@ -146,6 +146,13 @@ Section SafetyProperties.
     inversion H1. cbn in *. apply Z.ltb_lt in E; omega.
   Qed. 
 
+  Lemma init_total_supply_correct : forall chain ctx setup state,
+    piggyBank_init chain ctx setup = Some state ->
+      state.(balance) = 0.
+  Proof.
+    intros; unfold piggyBank_init in H; inversion H; easy.
+  Qed.
+
   Lemma balance_always_positive : forall bstate caddr,
     reachable bstate ->
     env_contracts bstate caddr = Some (piggyBank_contract : WeakContract) ->
@@ -155,7 +162,7 @@ Section SafetyProperties.
   Proof.
     intros * reach deployed.
     apply (lift_contract_state_prop piggyBank_contract); try easy.
-    - cbn. intros. unfold piggyBank_init in H. inversion H. cbn in *. easy.
+    - cbn. intros. apply init_total_supply_correct in H. omega.
     - cbn. intros. unfold piggyBank_receive in H0. destruct msg; try easy.
     unfold piggyBank in H0. destruct m. 
     + contract_simpl piggyBank_receive piggyBank_init. destruct cstate, piggyState0; try easy. 
