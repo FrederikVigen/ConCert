@@ -110,7 +110,7 @@ Section FunctionalProperties.
     - destruct prev_state. cbn in *. rewrite H1 in H2. unfold insert in *.
       cbn in H2. destruct (0 <? ctx_amount ctx); try discriminate. inversion H2. cbn. reflexivity.
     - intros H3. destruct prev_state. cbn in *. rewrite H1 in H2. rewrite H3 in H2. 
-      destruct (address_eqb_spec (ctx_from ctx) (ctx_from ctx)) in H2.
+      destruct_address_eq.
       + inversion H2. cbn. rewrite H3. auto.
       + discriminate.
     - discriminate.
@@ -128,8 +128,8 @@ Section SafetyProperties.
     intros H. unfold piggyBank_receive in H. destruct msg. unfold piggyBank in H.
     destruct m; cbn in *;destruct prev_state; cbn in *; destruct piggyState0; destruct (0 <? ctx_amount ctx); try easy.
     inversion H. cbn in *. reflexivity.
-    - destruct (address_eqb_spec (ctx_from ctx) owner0) in H; inversion H; auto.
-    - destruct (address_eqb_spec (ctx_from ctx) owner0) in H; inversion H; auto.
+    - destruct_address_eq; inversion H; auto.
+    - destruct_address_eq; inversion H; auto.
     - discriminate.  
   Qed.
 
@@ -169,7 +169,7 @@ Section SafetyProperties.
     unfold piggyBank in H0. destruct m. 
     + contract_simpl piggyBank_receive piggyBank_init. destruct cstate, piggyState0; try easy. 
     inversion H0. cbn in *. apply Z.ltb_lt in H1. omega.
-    + destruct cstate, piggyState0; try easy. destruct (address_eqb ctx.(ctx_from) owner0); try easy.
+    + destruct cstate, piggyState0; try easy. destruct_address_eq; try easy.
     inversion H0. cbn in *. easy.
   Qed.
 
