@@ -34,18 +34,28 @@ Inductive MultiAssetParam :=
 Global Instance MultiAssetParam_serializable : Serializable MultiAssetParam :=
 Derive Serializable MultiAssetParam_rect<Assets, Admin, Tokens>.
 
+Record Setup := {
+    admin_addr : Address;
+    minter_addr : Address;
+    tokens : list TokenMetadata;
+    meta_data_uri : N
+}.
+
+Global Instance Setup_serializable : Serializable Setup :=
+Derive Serializable Setup_rect<Build_Setup>.
+
 Definition main (ctx : ContractCallContext) (param : MultiAssetParam) (s : MultiAssetStorage) : option Return :=
     match param with
     | Admin p => multi_token_admin_main ctx p s
     | Tokens p =>
-        do _ <- fail_if_not_minter ctx s.(admin) ;
-        do tpl <- token_manager p s.(assets) ;
-        let new_s := s<| assets:= fst tpl |> in
+        do _ <- fail_if_not_minter ctx s.(fa2_admin) ;
+        do tpl <- token_manager p s.(fa2_assets) ;
+        let new_s := s<| fa2_assets:= fst tpl |> in
         Some (new_s, snd tpl)
     | Assets p =>
-        do _ <- fail_if_paused s.(admin) p ;
-        do tpl <- fa2_main ctx p s.(assets) ;
-        let new_s := s<| assets := fst tpl |> in
+        do _ <- fail_if_paused s.(fa2_admin) p ;
+        do tpl <- fa2_main ctx p s.(fa2_assets) ;
+        let new_s := s<| fa2_assets := fst tpl |> in
         Some (new_s, snd tpl)
     end.
 
@@ -53,22 +63,23 @@ Definition fa2_receive (chain : Chain) (ctx : ContractCallContext) (state: Multi
     do msg <- msg_opt ;
     main ctx msg state.    
 
-    (* TODO : Make into setup record  *)
-Definition fa2_init (chain : Chain) (ctx: ContractCallContext) (setup: ((Address * Address) * ((list TokenMetadata) * N))) : option MultiAssetStorage :=
-    let (t1,t2) := setup in
-    let (admin, minter) := t1 in
-    let (tokens, meta_data_uri) := t2 in
+
+Definition fa2_init (chain : Chain) (ctx: ContractCallContext) (setup: Setup) : option MultiAssetStorage :=
+    let admin := setup.(admin_addr) in
+    let minter := setup.(minter_addr) in
+    let tokens := setup.(tokens) in
+    let meta_data_uri := setup.(meta_data_uri) in
     let meta := FMap.update EmptyString (Some meta_data_uri) FMap.empty in
     let token_metadata := fold_right (fun (token_metadata : TokenMetadata) (acc : TokenMetaDataStorage) => FMap.update token_metadata.(tm_token_id) (Some token_metadata) acc) FMap.empty tokens in
     let supply := fold_right (fun (token_metadata : TokenMetadata) (acc : TokenTotalSupply) => FMap.update token_metadata.(tm_token_id) (Some 0) acc) FMap.empty tokens in
     Some ({|
-        admin := {|
+        fa2_admin := {|
             tas_admin := admin ;
             tas_pending_admin := None ;
             tas_paused := FMap.empty ;
             tas_minter := minter
         |} ;
-        assets := {|
+        fa2_assets := {|
             ledger := FMap.empty ;
             operators := FMap.empty ;
             token_metadata := token_metadata ;
@@ -78,7 +89,7 @@ Definition fa2_init (chain : Chain) (ctx: ContractCallContext) (setup: ((Address
     |}).
 
 (** The FA2 Contract **)
-Definition FA2_contract : Contract ((Address * Address) * ((list TokenMetadata) * N)) MultiAssetParam MultiAssetStorage :=
+Definition FA2_contract : Contract Setup MultiAssetParam MultiAssetStorage :=
     build_contract fa2_init fa2_receive.
 
 (**----------------- Admin Proofs -----------------**)
@@ -89,16 +100,16 @@ Lemma create_token_creates_new_token {ctx chain prev_state next_state token_id t
         tm_token_info := token_info
     |} ->
     fa2_receive chain ctx prev_state (Some (Admin (Create_token tMetaData))) = Some (next_state, []) ->
-    FMap.find token_id next_state.(assets).(token_metadata) = Some tMetaData.
+    FMap.find token_id next_state.(fa2_assets).(token_metadata) = Some tMetaData.
 Proof.
     intros. contract_simpl fa2_receive fa2_init. unfold create_token in H1. cbn in H1.
-    destruct (FMap.find token_id (token_metadata (assets prev_state))) in H1; try easy.
+    destruct (FMap.find token_id (token_metadata (fa2_assets prev_state))) in H1; try easy.
     inversion H1. cbn. setoid_rewrite FMap.find_add. reflexivity.
 Qed.
 
 Lemma set_new_admin_functionally_correct {ctx chain prev_state next_state new_admin} :
     fa2_receive chain ctx prev_state (Some (Admin (Token_admin (Set_admin new_admin)))) = Some (next_state, []) ->
-    next_state.(admin).(tas_pending_admin) = Some new_admin.
+    next_state.(fa2_admin).(tas_pending_admin) = Some new_admin.
 Proof.
     intros. contract_simpl fa2_receive fa2_init. easy.
 Qed.
@@ -106,17 +117,17 @@ Qed.
 
 Lemma set_new_minter_functionally_correct {ctx chain prev_state next_state new_minter} :
     fa2_receive chain ctx prev_state (Some (Admin (Token_admin (Set_minter new_minter)))) = Some (next_state, []) ->
-    next_state.(admin).(tas_minter) = new_minter.
+    next_state.(fa2_admin).(tas_minter) = new_minter.
 Proof.
     intros. contract_simpl fa2_receive fa2_init. easy.
 Qed.
 
 Lemma confirm_admin_functionally_correct {ctx chain prev_state next_state} :
     fa2_receive chain ctx prev_state (Some (Admin (Token_admin (Confirm_admin)))) = Some (next_state, []) ->
-    next_state.(admin).(tas_pending_admin) = None /\ next_state.(admin).(tas_admin) = ctx.(ctx_from).
+    next_state.(fa2_admin).(tas_pending_admin) = None /\ next_state.(fa2_admin).(tas_admin) = ctx.(ctx_from).
 Proof.
     intros. contract_simpl fa2_receive fa2_init. unfold confirm_new_admin in H. 
-    destruct (tas_pending_admin (admin prev_state)); try easy.
+    destruct (tas_pending_admin (fa2_admin prev_state)); try easy.
     destruct (address_eqb ctx.(ctx_from) a) in H; try easy.
     inversion H. easy.
 Qed.
@@ -127,7 +138,7 @@ Lemma pause_functionally_correct {ctx chain prev_state next_state tokens token_i
         pp_paused := true
     |}] ->
     fa2_receive chain ctx prev_state (Some (Admin (Token_admin (Pause tokens)))) = Some (next_state, []) ->
-    FMap.find token_id next_state.(admin).(tas_paused) = Some tt.
+    FMap.find token_id next_state.(fa2_admin).(tas_paused) = Some tt.
 Proof.
     intros. contract_simpl fa2_receive fa2_init.
     cbn. apply FMap.find_add.
@@ -139,7 +150,7 @@ Lemma unpause_functionally_correct {ctx chain prev_state next_state tokens token
         pp_paused := false
     |}] ->
     fa2_receive chain ctx prev_state (Some (Admin (Token_admin (Pause tokens)))) = Some (next_state, []) ->
-    FMap.find token_id next_state.(admin).(tas_paused) = None.
+    FMap.find token_id next_state.(fa2_admin).(tas_paused) = None.
 Proof.
     intros. contract_simpl fa2_receive fa2_init.
     cbn. apply FMap.find_remove.
@@ -154,9 +165,9 @@ Lemma balance_of_callbacks_with_balance_of {p chain ctx state req_addr req_token
     |} ->
     p.(bal_requests) = [req] ->
     fa2_receive chain ctx state (Some (Assets (Balance_of (p)))) = Some (state, acts) ->
-    acts = [act_call p.(bal_callback) 0 (serialize [{|request := req; balance:=(get_balance_amt (req.(owner), req.(bal_req_token_id)) state.(assets).(ledger)) |}])].
+    acts = [act_call p.(bal_callback) 0 (serialize [{|request := req; balance:=(get_balance_amt (req.(owner), req.(bal_req_token_id)) state.(fa2_assets).(ledger)) |}])].
 Proof.
-    intros. contract_simpl fa2_receive fa2_init. rewrite H0 in H1. cbn in H1. destruct (FMap.find req_token_id (token_metadata (assets state))).
+    intros. contract_simpl fa2_receive fa2_init. rewrite H0 in H1. cbn in H1. destruct (FMap.find req_token_id (token_metadata (fa2_assets state))).
     - inversion H1. reflexivity.
     - discriminate.
 Qed.
@@ -164,7 +175,7 @@ Qed.
 (** Checks if the total supply stays the same after transfer **)
 Lemma transfer_preserves_total_supply {prev_state next_state acts chain ctx transfers} :
     fa2_receive chain ctx prev_state (Some (Assets (FA2_Transfer transfers))) = Some (next_state, acts) ->
-    prev_state.(assets).(token_total_supply) = next_state.(assets).(token_total_supply).
+    prev_state.(fa2_assets).(token_total_supply) = next_state.(fa2_assets).(token_total_supply).
 Proof.
     intros. contract_simpl fa2_receive fa2_init. reflexivity.
 Qed. 
@@ -190,21 +201,21 @@ Lemma transfer_is_functionally_correct {chain ctx prev_state next_state acts fro
             amount := amount
         |}]
     |}]))) = Some (next_state, acts) ->
-    get_balance_amt (fromAddr, token_id) next_state.(assets).(ledger) = get_balance_amt (fromAddr, token_id) prev_state.(assets).(ledger) - amount /\
-    get_balance_amt (toAddr, token_id) next_state.(assets).(ledger) = get_balance_amt (toAddr, token_id) prev_state.(assets).(ledger) + amount.
+    get_balance_amt (fromAddr, token_id) next_state.(fa2_assets).(ledger) = get_balance_amt (fromAddr, token_id) prev_state.(fa2_assets).(ledger) - amount /\
+    get_balance_amt (toAddr, token_id) next_state.(fa2_assets).(ledger) = get_balance_amt (toAddr, token_id) prev_state.(fa2_assets).(ledger) + amount.
 Proof.
     intros. contract_simpl fa2_receive fa2_init. split.
     - unfold get_balance_amt. 
-        destruct (FMap.find (fromAddr, token_id) (ledger (assets prev_state))) eqn: E.
+        destruct (FMap.find (fromAddr, token_id) (ledger (fa2_assets prev_state))) eqn: E.
             * setoid_rewrite E. setoid_rewrite E. destruct (n-amount).
                 -- cbn. rewrite <- inc_balance_other_preservces_own; try easy. setoid_rewrite FMap.find_remove. easy.
                 -- cbn. rewrite <- inc_balance_other_preservces_own; try easy. setoid_rewrite FMap.find_add. easy.
             * setoid_rewrite E. setoid_rewrite E. cbn. rewrite <- inc_balance_other_preservces_own; try easy.
             setoid_rewrite FMap.find_remove. easy.
-    - unfold get_balance_amt. destruct (FMap.find (fromAddr, token_id) (ledger (assets prev_state))) eqn: E;
+    - unfold get_balance_amt. destruct (FMap.find (fromAddr, token_id) (ledger (fa2_assets prev_state))) eqn: E;
         do 2 setoid_rewrite E.
         + destruct (n-amount).
-            * unfold inc_balance. cbn. destruct (FMap.find (toAddr, token_id) (ledger (assets prev_state))) eqn: E1.
+            * unfold inc_balance. cbn. destruct (FMap.find (toAddr, token_id) (ledger (fa2_assets prev_state))) eqn: E1.
                 -- unfold get_balance_amt. setoid_rewrite FMap.find_remove_ne; try easy. setoid_rewrite E1.
                     destruct (n0+amount) eqn: E2.
                     --- cbn. setoid_rewrite FMap.find_remove. easy.
@@ -215,7 +226,7 @@ Proof.
                     --- cbn. setoid_rewrite FMap.find_remove. easy.
                     --- cbn. setoid_rewrite FMap.find_add. setoid_rewrite FMap.find_remove_ne; try easy.
                         setoid_rewrite E1. assumption.
-            * cbn. unfold inc_balance. cbn. destruct (FMap.find (toAddr, token_id) (ledger (assets prev_state))) eqn: E1.
+            * cbn. unfold inc_balance. cbn. destruct (FMap.find (toAddr, token_id) (ledger (fa2_assets prev_state))) eqn: E1.
                 -- unfold get_balance_amt. setoid_rewrite FMap.find_add_ne; try easy. setoid_rewrite E1.
                     destruct (n0+amount) eqn: E2.
                     --- cbn. setoid_rewrite FMap.find_remove. easy.
@@ -226,7 +237,7 @@ Proof.
                     --- cbn. setoid_rewrite FMap.find_remove. easy.
                     --- cbn. setoid_rewrite FMap.find_add. setoid_rewrite FMap.find_add_ne; try easy.
                         setoid_rewrite E1. assumption.
-        + unfold inc_balance. cbn. destruct (FMap.find (toAddr, token_id) (ledger (assets prev_state))) eqn: E1.
+        + unfold inc_balance. cbn. destruct (FMap.find (toAddr, token_id) (ledger (fa2_assets prev_state))) eqn: E1.
             * unfold get_balance_amt. setoid_rewrite FMap.find_remove_ne; try easy. setoid_rewrite FMap.find_remove_ne; try easy.
                 setoid_rewrite E1. destruct (n + amount) eqn: E2.
                 -- cbn. setoid_rewrite FMap.find_remove. easy.
@@ -248,9 +259,9 @@ Lemma transfer_to_self_changes_nothing {chain ctx prev_state next_state acts fro
             amount := amount
         |}]
     |}]))) = Some (next_state, acts) ->
-    get_balance_amt (fromAddr, token_id) next_state.(assets).(ledger) = get_balance_amt (fromAddr, token_id) prev_state.(assets).(ledger).
+    get_balance_amt (fromAddr, token_id) next_state.(fa2_assets).(ledger) = get_balance_amt (fromAddr, token_id) prev_state.(fa2_assets).(ledger).
 Proof.
-    intros. contract_simpl fa2_receive fa2_init. unfold get_balance_amt. destruct (FMap.find (toAddr, token_id) (ledger (assets prev_state))) eqn: E;
+    intros. contract_simpl fa2_receive fa2_init. unfold get_balance_amt. destruct (FMap.find (toAddr, token_id) (ledger (fa2_assets prev_state))) eqn: E;
     do 2 setoid_rewrite E.
     - unfold get_balance_amt in H3. setoid_rewrite E in H3. destruct (n-amount) eqn: E2; cbn.
         + unfold inc_balance. unfold get_balance_amt. setoid_rewrite FMap.find_remove. setoid_rewrite FMap.find_remove.
@@ -275,14 +286,14 @@ Lemma mint_functionally_correct {chain ctx prev_state owner token_id amount next
         mint_burn_token_id := token_id ;
         mint_burn_amount := amount
         |}]))) = Some (next_state, acts) ->
-    FMap.find token_id (prev_state.(assets).(token_total_supply)) = Some old_value ->
-    FMap.find token_id (next_state.(assets).(token_total_supply)) = Some v -> 
+    FMap.find token_id (prev_state.(fa2_assets).(token_total_supply)) = Some old_value ->
+    FMap.find token_id (next_state.(fa2_assets).(token_total_supply)) = Some v -> 
     old_value + amount = v /\
-    get_balance_amt (owner, token_id) prev_state.(assets).(ledger) + amount = get_balance_amt (owner, token_id) next_state.(assets).(ledger).
+    get_balance_amt (owner, token_id) prev_state.(fa2_assets).(ledger) + amount = get_balance_amt (owner, token_id) next_state.(fa2_assets).(ledger).
 Proof.
     intros. cbn in H. contract_simpl fa2_receive fa2_init. cbn in H1. split.
     - setoid_rewrite FMap.find_add in H1. setoid_rewrite H0 in H. inversion H1. easy.
-    - unfold inc_balance. cbn. destruct (get_balance_amt (owner, token_id) (ledger (assets prev_state)) + amount) eqn: E; 
+    - unfold inc_balance. cbn. destruct (get_balance_amt (owner, token_id) (ledger (fa2_assets prev_state)) + amount) eqn: E; 
         cbn; unfold get_balance_amt.
         + setoid_rewrite FMap.find_remove. easy.
         + setoid_rewrite FMap.find_add. easy.
@@ -294,28 +305,28 @@ Lemma burn_functionally_correct {chain ctx prev_state owner token_id amount next
         mint_burn_token_id := token_id ;
         mint_burn_amount := amount
         |}]))) = Some (next_state, acts) ->
-    FMap.find token_id (prev_state.(assets).(token_total_supply)) = Some old_value ->
-    FMap.find token_id (next_state.(assets).(token_total_supply)) = Some v -> 
+    FMap.find token_id (prev_state.(fa2_assets).(token_total_supply)) = Some old_value ->
+    FMap.find token_id (next_state.(fa2_assets).(token_total_supply)) = Some v -> 
     old_value - amount = v /\
-    get_balance_amt (owner, token_id) prev_state.(assets).(ledger) - amount = get_balance_amt (owner, token_id) next_state.(assets).(ledger).
+    get_balance_amt (owner, token_id) prev_state.(fa2_assets).(ledger) - amount = get_balance_amt (owner, token_id) next_state.(fa2_assets).(ledger).
 Proof.
     intros. cbn in H. contract_simpl fa2_receive fa2_init. cbn in H1. split.
     - setoid_rewrite FMap.find_add in H1. setoid_rewrite H0 in H. inversion H1. easy.
-    - unfold inc_balance. cbn. destruct (get_balance_amt (owner, token_id) (ledger (assets prev_state)) - amount) eqn: E; 
+    - unfold inc_balance. cbn. destruct (get_balance_amt (owner, token_id) (ledger (fa2_assets prev_state)) - amount) eqn: E; 
         cbn; unfold get_balance_amt.
         + setoid_rewrite FMap.find_remove. easy.
         + setoid_rewrite FMap.find_add. easy.
 Qed.
 
 Lemma only_minter_can_burn {chain ctx prev_state burnList} :
-    (ctx.(ctx_from) =? prev_state.(admin).(tas_minter))%address = false ->
+    (ctx.(ctx_from) =? prev_state.(fa2_admin).(tas_minter))%address = false ->
     fa2_receive chain ctx prev_state (Some (Tokens (BurnTokens burnList))) = None.
 Proof.
     intros. contract_simpl fa2_receive fa2_init. unfold fail_if_not_minter. rewrite H. reflexivity.
 Qed.
 
 Lemma cant_burn_more_than_supply {chain ctx prev_state owner token_id amount v} :
-    FMap.find token_id (prev_state.(assets).(token_total_supply)) = Some v -> 
+    FMap.find token_id (prev_state.(fa2_assets).(token_total_supply)) = Some v -> 
     v < amount ->
     fa2_receive chain ctx prev_state (Some (Tokens (BurnTokens [{|
     mint_burn_owner := owner ;
@@ -324,7 +335,7 @@ Lemma cant_burn_more_than_supply {chain ctx prev_state owner token_id amount v} 
     |}]))) = None.
 Proof.
     intros. contract_simpl fa2_receive fa2_init. unfold fail_if_not_minter. destruct address_eqb; try easy.
-    destruct (get_balance_amt (owner, token_id) (ledger (assets prev_state)) <? amount); try easy. cbn.
+    destruct (get_balance_amt (owner, token_id) (ledger (fa2_assets prev_state)) <? amount); try easy. cbn.
     setoid_rewrite H. destruct (v <? amount) eqn: E; try easy. rewrite N.ltb_ge in E. easy.
 Qed.
 

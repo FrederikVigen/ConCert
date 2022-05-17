@@ -50,7 +50,7 @@ Definition tx_result : Type := list TransferDestination * TokenLedger.
 Definition generate_tx_destinations (ctx: ContractCallContext) (p : WithdrawTokensParam) (ledger: TokenLedger) : tx_result := 
     fold_right (fun (token_id : N) (acc : tx_result) => 
         let (dsts, s) := acc in
-        let key := (p.(fa2_tokens), token_id) in
+        let key := (p.(wtp_fa2_tokens), token_id) in
         let available := token_balance ledger ctx.(ctx_from) key in
         if available =? 0 then acc
         else let new_dst : TransferDestination := {|
@@ -60,7 +60,7 @@ Definition generate_tx_destinations (ctx: ContractCallContext) (p : WithdrawToke
         |} in
         let new_ledger := FMap.remove (ctx.(ctx_from), key) s in
         ((new_dst :: dsts), new_ledger) 
-    ) ([], ledger) p.(tokens).
+    ) ([], ledger) p.(wtp_tokens).
 
 Definition transfer_operation (fa2 from: Address) (dests : list TransferDestination): ActionBody :=
     let tx : Transfer := {|
@@ -74,7 +74,7 @@ Definition generate_tokens_transfer (ctx: ContractCallContext) (p : WithdrawToke
     if N_of_nat (length tx_dsts) =? 0
     then ([], new_s)
     else 
-        let callback_op := transfer_operation ctx.(ctx_contract_address) p.(fa2_tokens) tx_dsts in
+        let callback_op := transfer_operation ctx.(ctx_contract_address) p.(wtp_fa2_tokens) tx_dsts in
         ([callback_op], new_s).
     
 Definition generate_token_transfer (ctx : ContractCallContext) (p : WithdrawTokenParam) (ledger: TokenLedger) : option (list ActionBody * TokenLedger) :=

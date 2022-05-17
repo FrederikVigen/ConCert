@@ -8,8 +8,8 @@ Context {BaseTypes : ChainBase}.
 Set Nonrecursive Elimination Schemes.
 
 Record WithdrawTokensParam :=
-     mkWithdrawTokensParam { fa2_tokens : Address ;
-                tokens : list N}.
+     mkWithdrawTokensParam { wtp_fa2_tokens : Address ;
+                wtp_tokens : list N}.
 
 Record WithdrawTokenParam : Type :=
      mkWithdrawTokenParam { fa2_token : Address ;

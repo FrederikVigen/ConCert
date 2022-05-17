@@ -24,9 +24,14 @@ Require Import String.
 Require Import List.
 Require Import Types.
 From ConCert.Examples.FA2 Require Import FA2Interface.
+From ConCert.Execution Require Import InterContractCommunication.
+From ConCert.Utils Require Import Extras.
+Require Import FA2_Multi_Asset.
 Require Import FA2InterfaceOwn.
 Import ListNotations.
 Require Import Fees_Lib.
+Require Import TokenAdmin.
+Require Import FA2Types.
 
 Section Main.
 
@@ -278,14 +283,14 @@ Qed.
 
 (**----------------- Fees Proofs -----------------**)
 Lemma Withdraw_all_tokens_is_functionally_correct {chain ctx prev_state p next_state ops token_id amount} :
-    p.(tokens) = [token_id] ->
-    token_balance prev_state.(fees).(fees_storage_tokens) ctx.(ctx_from) (p.(fa2_tokens), token_id) = amount ->
+    p.(wtp_tokens) = [token_id] ->
+    token_balance prev_state.(fees).(fees_storage_tokens) ctx.(ctx_from) (p.(wtp_fa2_tokens), token_id) = amount ->
     minter_receive chain ctx prev_state (Some (Fees (Withdraw_all_tokens p))) = Some (next_state, ops) ->
-    token_balance next_state.(fees).(fees_storage_tokens) ctx.(ctx_from) (p.(fa2_tokens), token_id) = 0 /\
+    token_balance next_state.(fees).(fees_storage_tokens) ctx.(ctx_from) (p.(wtp_fa2_tokens), token_id) = 0 /\
     (if amount =? 0 then ops = [] else 
     ops = [act_call ctx.(ctx_contract_address) (N_to_amount 0) (serialize (
         {|
-            from_ := p.(fa2_tokens);
+            from_ := p.(wtp_fa2_tokens);
             txs := [{|
                 to_ := ctx.(ctx_from);
                 dst_token_id := token_id;
@@ -474,5 +479,55 @@ Proof.
     intros. contract_simpl minter_receive minter_init. cbn.
     rewrite FMap.find_add. reflexivity.
 Qed.
+
+(**----------------- Minter FA2 Safety Proofs -----------------**)
+
+Definition sum_tx (txs : list MintBurnTx) (id : token_id): Z :=
+    fold_right 
+    (fun (tx : MintBurnTx) (acc : Z) => 
+        (
+            if tx.(mint_burn_token_id) =? id
+            then (acc + (Z.of_N tx.(mint_burn_amount)))%Z
+            else 0%Z
+        )
+        )
+    0%Z txs.
+
+Definition mint_or_burn (msg : FA2_Multi_Asset.MultiAssetParam) (id : token_id) : Z :=
+    match msg with
+    | Tokens (param) =>
+        match param with 
+        | MintTokens mint_param => sum_tx mint_param id
+        | BurnTokens mint_param => (sum_tx mint_param id) * (-1)
+        end
+    | _ => 0
+    end.
+
+Definition mint_or_burn_tx (id : token_id) (tx : Tx) : Z :=
+    match tx.(tx_body) with
+    | tx_call (Some msg_serialized) =>
+    match @deserialize MultiAssetParam MultiAssetParam_serializable msg_serialized with
+    | Some msg => mint_or_burn msg id
+    | _ => 0
+    end
+    | _ => 0
+    end.
+
+Definition minter : Prop :=
+    forall bstate caddr_main fa2_contract erc20 contract' fa2_address fa2_token_id token_supply (trace : ChainTrace empty_state bstate),
+    env_contracts bstate caddr_main = Some (contract' : WeakContract) ->
+    env_contracts bstate fa2_address = Some (fa2_contract : WeakContract) ->
+    exists state_main state_fa2 depinfo_main depinfo_lqt,
+    contract_state bstate caddr_main = Some state_main /\
+    contract_state bstate fa2_address = Some (state_fa2 : MultiAssetStorage) /\
+    deployment_info Setup trace caddr_main = Some depinfo_main /\
+    deployment_info FA2_Multi_Asset.Setup trace fa2_address = Some depinfo_lqt /\
+    (get_fa2_token_id erc20 state_main.(assets).(erc20tokens) = Some (fa2_address, fa2_token_id) ->
+    state_fa2.(fa2_admin).(tas_minter) = caddr_main ->
+    filter (actTo fa2_address) (outgoing_acts bstate caddr_main) = [] ->
+    FMap.find fa2_token_id state_fa2.(fa2_assets).(token_total_supply) = Some token_supply ->
+    sumZ (mint_or_burn_tx fa2_token_id) (outgoing_txs trace caddr_main) = Z.of_N token_supply
+    ).
+
 
 End Main. 

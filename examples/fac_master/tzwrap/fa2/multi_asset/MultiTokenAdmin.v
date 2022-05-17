@@ -28,12 +28,12 @@ Definition create_token (metadata : TokenMetadata) (storage : MultiTokenStorage)
 Definition multi_token_admin_main (ctx : ContractCallContext) (p : MultiTokenAdmin) (s: MultiAssetStorage) : option Return := 
     match p with
     | Token_admin p =>
-        do tpl <- token_admin ctx p s.(admin) ;
-        let new_s := s<|admin:= (snd tpl) |> in
+        do tpl <- token_admin ctx p s.(fa2_admin) ;
+        let new_s := s<|fa2_admin:= (snd tpl) |> in
         Some (new_s, fst tpl)
     | Create_token p =>
-        do res <- create_token p s.(assets) ;
-        Some (s<|assets:= res |>, [])
+        do res <- create_token p s.(fa2_assets) ;
+        Some (s<|fa2_assets:= res |>, [])
     end.
 
 End MultiTokenAdmin. 
