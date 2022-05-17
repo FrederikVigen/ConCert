@@ -466,18 +466,73 @@ Qed.
 
 (**----------------- Oracle Proofs -----------------**)
 
-Lemma distribute_xtz_functionally_correct {chain ctx prev_state next_state hash_list} :
-    (xtz_balance prev_state.(fees).(fees_storage_xtz) ctx.(ctx_contract_address) = 0 ->
-    minter_receive chain ctx prev_state (Some (Oracle (Distribute_xtz hash_list))) = Some (next_state, []) ->
-    next_state = prev_state)
-    /\
-    (1 = 1).
-
+Lemma shares_fold_only_adds {l l' signers_in ctx signers_count governance e} :
+    In e l ->
+    In e (fold_right (fun (k : N) (acc : list share_per_address) =>
+        (key_or_registered_address ctx k signers_in, governance.(fees_share_rec).(signers) / signers_count) :: acc
+    ) l l').
 Proof.
-    split.
-    - intros. contract_simpl minter_receive minter_init; unfold distribute_xtz.
-    cbn in *. rewrite H. cbn. destruct prev_state. cbn. reflexivity.
-    - reflexivity.
+    intros. induction l'; cbn in *; easy.
+Qed. 
+
+Lemma in_intro {A} : forall (e1 e2: A) (l: list A),
+    l = [e1;e2] ->
+    In e1 l /\ In e2 l.
+Proof.
+    intros. split; rewrite H; unfold In; easy.
+Qed.
+
+Lemma shares_fold_only_adds2 {l l' signers_in ctx signers_count governance} :
+    exists l'',
+    (fold_right (fun (k : N) (acc : list share_per_address) =>
+        (key_or_registered_address ctx k signers_in, governance.(fees_share_rec).(signers) / signers_count) :: acc
+    ) l l') = l'' ++ l.
+Proof.
+    intros. induction l'; intros.
+    - cbn in *. exists []. rewrite app_nil_l. easy.
+    - cbn in *. inversion IHl'. rewrite H. exists ((key_or_registered_address ctx a signers_in,
+    signers (fees_share_rec governance) / signers_count) :: 
+    x). easy.
+Qed. 
+
+Lemma shares_fold_only_adds3 {l l' signers_in ctx signers_count governance} :
+    (fold_right (fun (k : N) (acc : list share_per_address) =>
+        (key_or_registered_address ctx k signers_in, governance.(fees_share_rec).(signers) / signers_count) :: acc
+    ) l l') = (fold_right (fun (k : N) (acc : list share_per_address) =>
+    (key_or_registered_address ctx k signers_in, governance.(fees_share_rec).(signers) / signers_count) :: acc
+    ) [] l') ++ l.
+Proof.
+    intros. induction l'.
+    - cbn in *. easy.
+    - cbn in *. rewrite IHl'. easy.
+Qed.  
+
+Lemma two_elements_is_two_lists {A} : forall (e1 e2: A),
+    [e1;e2] = [e1] ++ [e2].
+Proof.
+    intros. easy.
+Qed.
+
+Lemma distribute_xtz_functionally_correct {chain ctx prev_state next_state hash_list} :
+    minter_receive chain ctx prev_state (Some (Oracle (Distribute_xtz hash_list))) = Some (next_state, []) ->
+    xtz_balance next_state.(fees).(fees_storage_xtz) next_state.(governance).(dev_pool_address) =
+    xtz_balance prev_state.(fees).(fees_storage_xtz) prev_state.(governance).(dev_pool_address) + 
+    (xtz_balance prev_state.(fees).(fees_storage_xtz) ctx.(ctx_contract_address)) /
+    (xtz_balance prev_state.(fees).(fees_storage_xtz) ctx.(ctx_contract_address)* prev_state.(governance).(fees_share_rec).(dev_pool)).
+Proof.
+    intros. contract_simpl minter_receive minter_init. unfold distribute_xtz.
+    destruct (xtz_balance (fees_storage_xtz (fees prev_state)) (ctx_contract_address ctx)) eqn: E; cbn in *; try easy.
+    unfold shares. rewrite shares_fold_only_adds3. rewrite fold_right_app. rewrite two_elements_is_two_lists.
+    rewrite fold_right_app. cbn. destruct (staking (fees_share_rec (governance prev_state))) eqn: E1.
+    - destruct (dev_pool (fees_share_rec (governance prev_state))) eqn: E2. cbn in*. 
+
+    
+    
+    remember ([(dev_pool_address (governance prev_state),
+    dev_pool (fees_share_rec (governance prev_state)));
+   (staking_address (governance prev_state),
+   staking (fees_share_rec (governance prev_state)))]). apply in_intro in Heql. inversion Heql. apply shares_fold_only_adds in H. 
+
 Qed.  
      
     
