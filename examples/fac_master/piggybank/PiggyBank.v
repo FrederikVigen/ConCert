@@ -2,6 +2,7 @@ Require Import Extras.
 Require Import Automation.
 Require Import Serializable.
 Require Import Blockchain.
+From ConCert.Execution Require Import ContractCommon.
 
 From Coq Require Import Morphisms ZArith Basics.
 From Coq Require Import List.
@@ -27,6 +28,8 @@ Section PiggyBank.
       build_state { balance : Amount ;
                   owner : Address ; 
                   piggyState : PiggyState}.
+
+  Definition Setup : Type := unit.
 
   Definition insert (n : Amount) (st : State) : State :=
       {| balance := st.(balance) + n ;
@@ -65,8 +68,8 @@ Section PiggyBank.
        end.
 
   (** We initialize the contract state with [init_value] and set [owner] to the address from which the contract was deployed *)
-  Definition piggyBank_init (chain : Chain) (ctx : ContractCallContext) (init_value : Amount) : option State :=
-  Some {| balance := init_value ;
+  Definition piggyBank_init (chain : Chain) (ctx : ContractCallContext) (_ : Setup) : option State :=
+  Some {| balance := 0 ;
           owner := ctx.(ctx_from);
           piggyState := Intact |}.
 
@@ -81,7 +84,7 @@ Section PiggyBank.
     Derive Serializable Msg_rect<Insert, Smash>.
 
   (** The piggybank contract *)
-  Definition piggyBank_contract : Contract Amount Msg State :=
+  Definition piggyBank_contract : Contract Setup Msg State :=
     build_contract piggyBank_init piggyBank_receive.
 
 End PiggyBank.
@@ -107,7 +110,7 @@ Section FunctionalProperties.
     - destruct prev_state. cbn in *. rewrite H1 in H2. unfold insert in *.
       cbn in H2. destruct (0 <? ctx_amount ctx); try discriminate. inversion H2. cbn. reflexivity.
     - intros H3. destruct prev_state. cbn in *. rewrite H1 in H2. rewrite H3 in H2. 
-      destruct (address_eqb_spec (ctx_from ctx) (ctx_from ctx)) in H2.
+      destruct_address_eq.
       + inversion H2. cbn. rewrite H3. auto.
       + discriminate.
     - discriminate.
@@ -125,8 +128,8 @@ Section SafetyProperties.
     intros H. unfold piggyBank_receive in H. destruct msg. unfold piggyBank in H.
     destruct m; cbn in *;destruct prev_state; cbn in *; destruct piggyState0; destruct (0 <? ctx_amount ctx); try easy.
     inversion H. cbn in *. reflexivity.
-    - destruct (address_eqb_spec (ctx_from ctx) owner0) in H; inversion H; auto.
-    - destruct (address_eqb_spec (ctx_from ctx) owner0) in H; inversion H; auto.
+    - destruct_address_eq; inversion H; auto.
+    - destruct_address_eq; inversion H; auto.
     - discriminate.  
   Qed.
 
@@ -144,5 +147,57 @@ Section SafetyProperties.
     intros H H1. destruct prev_state. cbn in *. rewrite H in H1. destruct (0 <? ctx_amount ctx) eqn:E; try easy.
     inversion H1. cbn in *. apply Z.ltb_lt in E; omega.
   Qed. 
-    
+
+  Lemma init_total_supply_correct : forall chain ctx setup state,
+    piggyBank_init chain ctx setup = Some state ->
+      state.(balance) = 0.
+  Proof.
+    intros; unfold piggyBank_init in H; inversion H; easy.
+  Qed.
+
+  Lemma balance_always_positive : forall bstate caddr,
+    reachable bstate ->
+    env_contracts bstate caddr = Some (piggyBank_contract : WeakContract) ->
+    exists cstate,
+      contract_state bstate caddr = Some cstate
+      /\ 0 <= cstate.(balance).
+  Proof.
+    intros * reach deployed.
+    apply (lift_contract_state_prop piggyBank_contract); try easy.
+    - cbn. intros. apply init_total_supply_correct in H. omega.
+    - cbn. intros. unfold piggyBank_receive in H0. destruct msg; try easy.
+    unfold piggyBank in H0. destruct m. 
+    + contract_simpl piggyBank_receive piggyBank_init. destruct cstate, piggyState0; try easy. 
+    inversion H0. cbn in *. apply Z.ltb_lt in H1. omega.
+    + destruct cstate, piggyState0; try easy. destruct_address_eq; try easy.
+    inversion H0. cbn in *. easy.
+  Qed.
+
+  Lemma owner_never_changes2 : forall bstate caddr (trace : ChainTrace empty_state bstate),
+    reachable bstate ->
+    env_contracts bstate caddr = Some (piggyBank_contract : WeakContract) ->
+    exists cstate depinfo,
+      contract_state bstate caddr = Some cstate /\
+      deployment_info Setup trace caddr = Some depinfo /\
+      depinfo.(deployment_from) = cstate.(owner).
+  Proof.
+    contract_induction;
+      intros; auto.
+      - cbn in *. unfold piggyBank_init in init_some. inversion init_some. easy.
+      - cbn in *. unfold piggyBank_receive in receive_some. destruct msg; try easy.
+        unfold piggyBank in receive_some. destruct m; try easy. destruct (0 <? ctx_amount ctx); try easy.
+        + rewrite IH. destruct prev_state. cbn in *. destruct piggyState0; try easy. inversion receive_some. easy.
+        + rewrite IH. destruct prev_state. cbn in *. destruct piggyState0; try easy. destruct_address_eq; try easy.
+        inversion receive_some. easy.
+      - rewrite IH. cbn in *. unfold piggyBank_receive in receive_some. destruct msg; try easy.
+        unfold piggyBank in receive_some. destruct m.
+        + destruct (0 <? ctx_amount ctx); try easy. destruct prev_state. destruct piggyState0; try easy. inversion receive_some. easy.
+        + destruct prev_state. destruct piggyState0; try easy. destruct_address_eq; try easy. inversion receive_some. easy.
+      - instantiate (AddBlockFacts := fun _ _ _ _ _ _ => True).
+        instantiate (DeployFacts := fun _ _ => True).
+        instantiate (CallFacts := fun _ _ _ _ => True).
+        unset_all; subst;cbn in *.
+        destruct_chain_step; auto.
+        destruct_action_eval; auto.
+  Qed.
 End SafetyProperties.

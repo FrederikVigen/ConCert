@@ -30,9 +30,9 @@ Definition transfer_xtz (addr: Address) (value: N) : option ActionBody :=
     Some (act_transfer addr (N_to_amount value)).
 
 Definition withdraw_xtz (ctx : ContractCallContext) (a : option N) (s : XTZLedger) : option (list ActionBody * XTZLedger) :=
-    let available :=  xtz_balance s ctx.(ctx_from)  in 
+    let available := xtz_balance s ctx.(ctx_from)  in 
     let value_opt := match a with
-    | Some v => if available <? v then Some v else None
+    | Some v => if available <? v then None else Some v
     | None => Some available
     end in
     do value <- value_opt ;

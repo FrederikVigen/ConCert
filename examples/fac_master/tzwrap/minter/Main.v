@@ -282,26 +282,83 @@ Lemma Withdraw_all_tokens_is_functionally_correct {chain ctx prev_state p next_s
     token_balance prev_state.(fees).(fees_storage_tokens) ctx.(ctx_from) (p.(fa2_tokens), token_id) = amount ->
     minter_receive chain ctx prev_state (Some (Fees (Withdraw_all_tokens p))) = Some (next_state, ops) ->
     token_balance next_state.(fees).(fees_storage_tokens) ctx.(ctx_from) (p.(fa2_tokens), token_id) = 0 /\
-    (ops = [act_call ctx.(ctx_contract_address) (N_to_amount 0) (serialize ({|
-        from_ := p.(fa2_tokens);
-        txs := [{|
-            to_ := ctx.(ctx_from);
-            dst_token_id := token_id;
-            amount := amount
-        |}]
-    |}))] \/ ops = []).
+    (if amount =? 0 then ops = [] else 
+    ops = [act_call ctx.(ctx_contract_address) (N_to_amount 0) (serialize (
+        {|
+            from_ := p.(fa2_tokens);
+            txs := [{|
+                to_ := ctx.(ctx_from);
+                dst_token_id := token_id;
+                amount := amount
+            |}]
+        |}
+    ))]).
 Proof.
     intros. contract_simpl minter_receive minter_init. unfold generate_tokens_transfer in H1.
     unfold generate_tx_destinations in H1. rewrite H in H1. cbn in H1. rewrite H0 in H1. 
-    destruct (amount =? 0) eqn:E in H1. 
-    - cbn in H1. inversion H1. split.
-        + cbn. apply N.eqb_eq in E. rewrite E in H0. apply H0.
-        + easy.
-    - cbn in H1. inversion H1. cbn. split.
+    destruct (amount =? 0) eqn:E in H1; cbn in H1; inversion H1; split; 
+    try rewrite N.eqb_eq in E; try rewrite E; try easy.
+        + cbn. rewrite E in H0. apply H0. 
         + unfold token_balance. setoid_rewrite FMap.find_remove. reflexivity.
-        + easy.
 Qed.
 
+Lemma Withdraw_tokens_is_functionally_correct {chain ctx prev_state p next_state ops amount} :
+    token_balance prev_state.(fees).(fees_storage_tokens) ctx.(ctx_from) (p.(fa2_token), p.(wtp_token_id)) = amount ->
+    minter_receive chain ctx prev_state (Some (Fees (Withdraw_token p))) = Some (next_state, ops) ->
+    token_balance next_state.(fees).(fees_storage_tokens) ctx.(ctx_from) (p.(fa2_token), p.(wtp_token_id)) = amount - p.(wtp_amount) /\
+    ops = [act_call ctx.(ctx_contract_address) (N_to_amount 0) (serialize (
+        {|
+            from_ := p.(fa2_token);
+            txs := [{|
+                to_ := ctx.(ctx_from);
+                dst_token_id := p.(wtp_token_id);
+                amount := p.(wtp_amount)
+            |}]
+        |}))].
+Proof.
+    intros. contract_simpl minter_receive minter_init. split. 
+    - destruct (token_balance (fees_storage_tokens (fees prev_state)) (ctx_from ctx) (fa2_token p, wtp_token_id p) - wtp_amount p) eqn:E; cbn.
+        + unfold token_balance. setoid_rewrite FMap.find_remove. reflexivity.
+        + unfold token_balance. setoid_rewrite FMap.find_add. reflexivity.
+    - unfold transfer_operation. cbn. reflexivity.
+Qed.
+
+Lemma Withdraw_all_xtz_is_functionally_correct {chain ctx prev_state next_state ops amount} :
+    xtz_balance prev_state.(fees).(fees_storage_xtz) ctx.(ctx_from) = amount ->
+    minter_receive chain ctx prev_state (Some (Fees (Withdraw_all_xtz))) = Some (next_state, ops) ->
+    xtz_balance next_state.(fees).(fees_storage_xtz) ctx.(ctx_from) = 0 /\
+    (if amount =? 0 then ops = [] else 
+        ops = [act_transfer ctx.(ctx_from) (N_to_amount amount)]). 
+Proof.
+    intros. contract_simpl minter_receive minter_init. 
+    destruct (xtz_balance (fees_storage_xtz (fees prev_state)) (ctx_from ctx) =? 0) eqn:E. 
+    - cbn. inversion H2. cbn. rewrite N.eqb_eq in E; try easy.
+    - cbn. destruct (throwIf (address_is_contract (ctx_from ctx))); try easy. inversion H2. cbn.
+      rewrite N.sub_diag. cbn. unfold xtz_balance. setoid_rewrite FMap.find_remove; try easy.
+Qed.
+
+Lemma Withdraw_xtz_is_functionally_correct {chain ctx prev_state next_state ops amount n} :
+    xtz_balance prev_state.(fees).(fees_storage_xtz) ctx.(ctx_from) = amount ->
+    minter_receive chain ctx prev_state (Some (Fees (Withdraw_xtz n))) = Some (next_state, ops) ->
+    xtz_balance next_state.(fees).(fees_storage_xtz) ctx.(ctx_from) = amount-n /\
+    (if amount =? 0 then ops = [] else 
+        ops = [act_transfer ctx.(ctx_from) (N_to_amount n)]). 
+Proof.
+    intros. contract_simpl minter_receive minter_init.
+    split.
+    - destruct (xtz_balance (fees_storage_xtz (fees prev_state)) (ctx_from ctx)) eqn:E. 
+        + cbn in H2. inversion H2. cbn. apply E.
+        + cbn in *. destruct (throwIf (address_is_contract (ctx_from ctx))); 
+          try easy. inversion H2. cbn. unfold xtz_balance. destruct n0 eqn:E2.
+            * cbn. setoid_rewrite FMap.find_add. reflexivity.
+            * destruct (Pos.sub_mask p0 p1); cbn.
+                -- setoid_rewrite FMap.find_remove. reflexivity.
+                -- setoid_rewrite FMap.find_add.  reflexivity.
+                -- setoid_rewrite FMap.find_remove. reflexivity.
+    - destruct (xtz_balance (fees_storage_xtz (fees prev_state)) (ctx_from ctx) =? 0) eqn:E in H2.
+        + inversion H2. now rewrite E.
+        + destruct (throwIf (address_is_contract (ctx_from ctx))); try easy. inversion H2. now rewrite E.
+Qed.
 
 (**----------------- Unwrap Proofs -----------------**)
 
@@ -406,33 +463,6 @@ Proof.
     unfold Fees_Lib.check_nft_fees_high_enough. unfold throwIf. rewrite <- N.ltb_lt in H. rewrite H. reflexivity.
 Qed.
 
-(* Trying to unwrap non existent token *)
-Lemma unwrap_erc20_non_existent_token {chain ctx prev_state eth_address amount fees_amount erc20_dest} :
-    get_fa2_token_id eth_address prev_state.(assets).(erc20tokens) = None  ->
-    minter_receive chain ctx prev_state (Some (Unwrap (unwrap_erc20_entrypoint ({|
-        erc_20 := eth_address;
-        up_amount := amount;
-        up_fees := fees_amount;
-        up_erc20_destination := erc20_dest
-    |})))) = None.
-Proof.
-    intros. contract_simpl minter_receive minter_init. destruct (fail_if_paused (admin prev_state)); try easy.
-    destruct (fail_if_amount ctx); try easy. unfold unwrap_erc20. cbn in *. rewrite H. reflexivity.
-Qed.
-
-(* Trying to unwrap non existent token *)
-Lemma unwrap_erc721_non_existent_token {chain ctx prev_state eth_address erc721_dest token_id} :
-    get_nft_contract eth_address prev_state.(assets).(erc721tokens) = None ->
-    minter_receive chain ctx prev_state (Some (Unwrap (unwrap_erc721_entrypoint ({|
-        erc_721 := eth_address;
-        up_token_id := token_id;
-        up_erc721_destination := erc721_dest
-    |})))) = None.
-Proof.
-    intros. contract_simpl minter_receive minter_init. destruct (fail_if_paused (admin prev_state)); try easy.
-    destruct (check_nft_fees_high_enough (Z.to_N (ctx_amount ctx)) (erc721_unwrapping_fees (governance prev_state))); try easy.
-    rewrite H. reflexivity.
-Qed.
 
 (**----------------- Oracle Proofs -----------------**)
 
