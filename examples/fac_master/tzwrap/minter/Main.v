@@ -513,10 +513,54 @@ Definition mint_or_burn_tx (id : token_id) (tx : Tx) : Z :=
     | _ => 0
     end.
 
-Definition minter : Prop :=
-    forall bstate caddr_main fa2_contract erc20 contract' fa2_address fa2_token_id token_supply (trace : ChainTrace empty_state bstate),
-    env_contracts bstate caddr_main = Some (contract' : WeakContract) ->
-    env_contracts bstate fa2_address = Some (fa2_contract : WeakContract) ->
+Lemma minter_correct : forall bstate caddr_main erc20 fa2_address fa2_token_id (trace : ChainTrace empty_state bstate),
+    env_contracts bstate caddr_main = Some (minter_contract : WeakContract) ->
+    exists (state_main : State) depinfo_main,
+        contract_state bstate caddr_main = Some state_main /\
+        deployment_info Setup trace caddr_main = Some depinfo_main /\
+        (
+        get_fa2_token_id erc20 state_main.(assets).(erc20tokens) = Some (fa2_address, fa2_token_id) ->
+        filter (actTo fa2_address) (outgoing_acts bstate caddr_main) = [] ->
+        exists total,
+        sumZ (mint_or_burn_tx fa2_token_id) (filter (txCallTo fa2_address) (outgoing_txs trace caddr_main)) = total
+        ).
+Proof.
+    contract_induction;
+    intros; auto.
+    -  exists 0%Z. easy.
+    - eexists. Admitted.
+
+
+Lemma fa2_correct : forall bstate fa2_address fa2_token_id total_supply (trace: ChainTrace empty_state bstate),
+    env_contracts bstate fa2_address = Some (FA2_contract : WeakContract) ->
+    exists (state_fa2 : MultiAssetStorage) depinfo_fa2,
+        contract_state bstate fa2_address = Some state_fa2 /\
+        deployment_info FA2_Multi_Asset.Setup trace fa2_address = Some depinfo_fa2 /\ 
+        (
+        FMap.find fa2_token_id state_fa2.(fa2_assets).(token_total_supply) = Some total_supply ->
+        sumZ (mint_or_burn_tx fa2_token_id) (incoming_txs trace fa2_address) = Z.of_N total_supply
+        ).
+Proof.
+    contract_induction.
+    
+
+
+    
+
+
+Lemma fa2_correct : forall bstate fa2_address (trace : ChainTrace empty_state bstate),
+    env_contracts bstate fa2_address = Some (FA2_contract : WeakContract) ->
+    exists (state_fa2 : MultiAssetStorage) depinfo_fa2,
+        contract_state bstate fa2_address = Some state_fa2 /\
+        deployment_info FA2_Multi_Asset.Setup trace fa2_address = Some depinfo_fa2.
+Proof.
+Admitted.
+    
+    
+
+Lemma minter_fa2_synced_spec : forall bstate caddr_main erc20 fa2_address fa2_token_id token_supply (trace : ChainTrace empty_state bstate),
+    env_contracts bstate caddr_main = Some (minter_contract : WeakContract) ->
+    env_contracts bstate fa2_address = Some (FA2_contract : WeakContract) ->
     exists state_main state_fa2 depinfo_main depinfo_lqt,
     contract_state bstate caddr_main = Some state_main /\
     contract_state bstate fa2_address = Some (state_fa2 : MultiAssetStorage) /\
@@ -528,6 +572,23 @@ Definition minter : Prop :=
     FMap.find fa2_token_id state_fa2.(fa2_assets).(token_total_supply) = Some token_supply ->
     sumZ (mint_or_burn_tx fa2_token_id) (outgoing_txs trace caddr_main) = Z.of_N token_supply
     ).
+Proof.
+    intros ? ? ? ? ? ? ? minter_deployed fa2_deployed.
+    apply (minter_correct _ _ trace) in minter_deployed as minter.
+    destruct minter as (state_main & depinfo_main & deployed_state_main & dep_info_main).
+    apply (fa2_correct _ _ trace) in fa2_deployed as fa2.
+    destruct fa2 as (state_fa2 & depinfo_fa2 & deployed_state_fa2 & dep_info_fa2).
+    do 4 eexists.
+    repeat split; eauto.
+    intros. unfold mint_or_burn_tx.
+
+
+
+    
+
+    
+    
+    
 
 
 End Main. 
