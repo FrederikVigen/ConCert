@@ -82,21 +82,21 @@ Definition fail_if_paused (a : TokenAdminStorage) (param : FA2EntryPoints) :=
     | FA2_Transfer transfer => fail_if_paused_tokens transfer a.(tas_paused)
     end.
 
-Definition token_admin (ctx : ContractCallContext) (param : TokenAdmin) (s : TokenAdminStorage) : option ((list ActionBody) * TokenAdminStorage) :=
+Definition token_admin (ctx : ContractCallContext) (param : TokenAdmin) (s : TokenAdminStorage) : option (TokenAdminStorage * (list ActionBody)) :=
     match param with
     | Set_admin new_admin =>
         do s <- fail_if_not_admin ctx s ;
         let new_s := set_admin new_admin s in
-        Some ([], new_s)
+        Some (new_s, [])
     | Confirm_admin =>
         do new_s <- confirm_new_admin ctx s ;
-        Some ([], new_s)
+        Some (new_s, [])
     | Pause tokens =>
         do s <- fail_if_not_admin ctx s ;
         let new_s := pause tokens s in
-        Some ([], new_s)
+        Some (new_s, [])
     | Set_minter p =>
         do s <- fail_if_not_admin ctx s ;
-        Some ([], s<| tas_minter := p |>)
+        Some (s<| tas_minter := p |>, [])
     end.
 End TokenAdmin.

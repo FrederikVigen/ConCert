@@ -29,8 +29,8 @@ Definition multi_token_admin_main (ctx : ContractCallContext) (p : MultiTokenAdm
     match p with
     | Token_admin p =>
         do tpl <- token_admin ctx p s.(fa2_admin) ;
-        let new_s := s<|fa2_admin:= (snd tpl) |> in
-        Some (new_s, fst tpl)
+        let new_s := s<|fa2_admin:= (fst tpl) |> in
+        Some (new_s, snd tpl)
     | Create_token p =>
         do res <- create_token p s.(fa2_assets) ;
         Some (s<|fa2_assets:= res |>, [])
