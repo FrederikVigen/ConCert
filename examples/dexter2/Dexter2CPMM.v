@@ -2605,7 +2605,7 @@ Qed.
     env_contracts bstate caddr = Some (contract : WeakContract) ->
     exists cstate depinfo,
       contract_state bstate caddr = Some cstate /\
-      deployment_info Setup trace caddr = Some depinfo /\z<
+      deployment_info Setup trace caddr = Some depinfo /\
       let initial_tokens := lqtTotal_ (deployment_setup depinfo) in
       Z.of_N cstate.(lqtTotal) = (Z.of_N initial_tokens) + sumZ mintedOrBurnedTokens_acts (filter (actTo cstate.(lqtAddress)) (outgoing_acts bstate caddr))
         + sumZ mintedOrBurnedTokens_tx (filter (txCallTo cstate.(lqtAddress)) (outgoing_txs trace caddr)).
@@ -2720,12 +2720,7 @@ Qed.
         cbn.
         intros addr_main_eq addr_lqt_eq init_pool_eq no_waiting_mint_acts.
         apply N2Z.inj.
-        rewrite main_correct.
-        rewrite lqt_correct. 
-        rewrite init_pool_eq. 
-        rewrite no_waiting_mint_acts. 
-        rewrite addr_main_eq. 
-        rewrite addr_lqt_eq.
+        rewrite main_correct, lqt_correct, init_pool_eq, no_waiting_mint_acts, addr_main_eq, addr_lqt_eq.
         rewrite Z.add_0_r, Z.add_cancel_l.
         rewrite calls_eq, sumZ_map.
         apply sumZ_eq.
