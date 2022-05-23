@@ -514,19 +514,23 @@ Proof.
 Qed.
 
 Lemma distribute_xtz_functionally_correct {chain ctx prev_state next_state hash_list} :
+    ctx_contract_address ctx <> dev_pool_address (governance prev_state) ->
     minter_receive chain ctx prev_state (Some (Oracle (Distribute_xtz hash_list))) = Some (next_state, []) ->
     xtz_balance next_state.(fees).(fees_storage_xtz) next_state.(governance).(dev_pool_address) =
     xtz_balance prev_state.(fees).(fees_storage_xtz) prev_state.(governance).(dev_pool_address) + 
-    (xtz_balance prev_state.(fees).(fees_storage_xtz) ctx.(ctx_contract_address)) /
-    (xtz_balance prev_state.(fees).(fees_storage_xtz) ctx.(ctx_contract_address)* prev_state.(governance).(fees_share_rec).(dev_pool)).
+    tez_share (xtz_balance prev_state.(fees).(fees_storage_xtz) ctx.(ctx_contract_address)) (prev_state.(governance).(fees_share_rec).(dev_pool)).
 Proof.
     intros. contract_simpl minter_receive minter_init. unfold distribute_xtz.
     destruct (xtz_balance (fees_storage_xtz (fees prev_state)) (ctx_contract_address ctx)) eqn: E; cbn in *; try easy.
     unfold shares. rewrite shares_fold_only_adds3. rewrite fold_right_app. rewrite two_elements_is_two_lists.
     rewrite fold_right_app. cbn. destruct (staking (fees_share_rec (governance prev_state))) eqn: E1.
     - destruct (dev_pool (fees_share_rec (governance prev_state))) eqn: E2. cbn in*. 
-
-    
+        + destruct (FMap.find (staking_address (governance prev_state)) (fees_storage_xtz (fees prev_state))) eqn: E3.
+            * setoid_rewrite FMap.find_add_ne. destruct (FMap.find (dev_pool_address (governance prev_state)) (fees_storage_xtz (fees prev_state))) eqn: E4.
+                -- setoid_rewrite E4. induction hash_list.
+                    --- cbn in *. rewrite N.add_0_l. unfold xtz_balance. setoid_rewrite FMap.find_add_ne; try easy.
+                        setoid_rewrite FMap.find_add. rewrite E4. easy.
+                    --- cbn in *.         
     
     remember ([(dev_pool_address (governance prev_state),
     dev_pool (fees_share_rec (governance prev_state)));
