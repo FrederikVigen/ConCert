@@ -2,6 +2,7 @@ Require Import Blockchain.
 From ConCert.Examples Require Import FA2Interface.
 From ConCert.Utils Require Import Extras.
 From ConCert.Execution Require Import InterContractCommunication.
+Require Import Automation.
 Require Import FA2InterfaceOwn.
 Require Import RecordUpdate.
 Require Import ContractCommon.
@@ -343,16 +344,17 @@ Proof.
 Qed.
 
 (**----------------- FA2_Multi_Asset -----------------**)
-Definition sum_tx (txs : list MintBurnTx) (id : token_id): Z :=
+Definition sum_tx (txs : list MintBurnTx) (id : token_id): Z :=    
     fold_right 
-    (fun (tx : MintBurnTx) (acc : Z) => 
-        (
-            if tx.(mint_burn_token_id) =? id
-            then (acc + (Z.of_N tx.(mint_burn_amount)))%Z
-            else 0%Z
-        )
-        )
-    0%Z txs.
+        (fun (tx : MintBurnTx) (acc : Z) => 
+            (
+                if tx.(mint_burn_token_id) =? id
+                then (acc + (Z.of_N tx.(mint_burn_amount)))%Z
+                else 0%Z
+            )
+            )
+        0%Z txs.
+
 
 Definition mint_or_burn (id : token_id) (msg : option MultiAssetParam) : Z :=
     match msg with
@@ -373,7 +375,12 @@ Lemma init_total_supply_correct {chain ctx setup state fa2_token_id total_supply
     fa2_init chain ctx setup = Some state ->
     total_supply = 0.
 Proof.
-    contract_simpl fa2_receive fa2_init. Admitted.
+    intros. contract_simpl fa2_receive fa2_init. induction tokens.
+     - cbn in H. setoid_rewrite FMap.find_empty in H. inversion H.
+     - cbn in *. destruct (fa2_token_id =? (tm_token_id a)) eqn:E.
+         + rewrite N.eqb_eq in E. rewrite E in H. setoid_rewrite FMap.find_add in H. inversion H. reflexivity.
+         + rewrite N.eqb_neq in E. setoid_rewrite FMap.find_add_ne in H; try easy.
+ Qed.
 
 Lemma assets_endpoint_does_not_change_minter {prev_state next_state acts chain ctx param} :
     fa2_receive chain ctx prev_state (Some (Assets param)) = Some (next_state, acts) ->
@@ -382,37 +389,112 @@ Proof.
     intros; now contract_simpl fa2_receive fa2_init.
 Qed. 
 
-Lemma balance_of_preserves_total_supply {prev_state next_state acts chain ctx param} :
-    fa2_receive chain ctx prev_state (Some (Assets (Balance_of (param)))) = Some (next_state, acts) ->
-    prev_state.(fa2_assets).(token_total_supply) = next_state.(fa2_assets).(token_total_supply).
-Proof.
-    intros. contract_simpl fa2_receive fa2_init.
-Qed. 
-
-Lemma update_operators_preserves_total_supply {prev_state next_state acts chain ctx param} :
-    fa2_receive chain ctx prev_state (Some (Assets (Update_operators (param)))) = Some (next_state, acts) ->
-    prev_state.(fa2_assets).(token_total_supply) = next_state.(fa2_assets).(token_total_supply).
-Proof.
-    intros. contract_simpl fa2_receive fa2_init.
-Qed. 
-
 Lemma assets_endpoint_preserves_total_supply {prev_state next_state acts chain ctx param} :
     fa2_receive chain ctx prev_state (Some (Assets param)) = Some (next_state, acts) ->
     prev_state.(fa2_assets).(token_total_supply) = next_state.(fa2_assets).(token_total_supply).
 Proof.
     intros. contract_simpl fa2_receive fa2_init. destruct param.
-    - inversion H1. destruct (transfer ctx transfers default_operator_validator (fa2_assets prev_state)) in H2.
-     now inversion H2.
-
+    - inversion H1; destruct (transfer ctx transfers default_operator_validator (fa2_assets prev_state)) in H2; try easy; now inversion H2.
+    - inversion H1; destruct (get_balance balanceOf (ledger (fa2_assets prev_state)) (token_metadata (fa2_assets prev_state))) in H2; try easy; now inversion H2.
+    - inversion H1; destruct (fa2_update_operators ctx updates (operators (fa2_assets prev_state))) in H2; try easy; now inversion H2.
 Qed. 
 
-Lemma set_admin_preserves_total_supply {prev_state next_state acts chain ctx addr} :
-    fa2_receive chain ctx prev_state (Some (Admin (Token_admin (Set_admin addr)))) = Some (next_state, acts) ->
-    prev_state.(fa2_assets).(token_total_supply) = next_state.(fa2_assets).(token_total_supply).
+Lemma assets_endpoint_preserves_metadata {prev_state next_state acts chain ctx param} :
+    fa2_receive chain ctx prev_state (Some (Assets param)) = Some (next_state, acts) ->
+    prev_state.(fa2_assets).(token_metadata) = next_state.(fa2_assets).(token_metadata).
 Proof.
-    intros. contract_simpl fa2_receive fa2_init.
+    intros. contract_simpl fa2_receive fa2_init. destruct param.
+    - inversion H1; destruct (transfer ctx transfers default_operator_validator (fa2_assets prev_state)) in H2; try easy; now inversion H2.
+    - inversion H1; destruct (get_balance balanceOf (ledger (fa2_assets prev_state)) (token_metadata (fa2_assets prev_state))) in H2; try easy; now inversion H2.
+    - inversion H1; destruct (fa2_update_operators ctx updates (operators (fa2_assets prev_state))) in H2; try easy; now inversion H2.
 Qed.
 
+Lemma token_metadata_always_same {prev_state next_state acts chain ctx param fa2_token_id metadata} :
+    FMap.find fa2_token_id prev_state.(fa2_assets).(token_metadata) = Some metadata ->
+    fa2_receive chain ctx prev_state (Some (Admin param)) = Some (next_state, acts) ->
+    FMap.find fa2_token_id prev_state.(fa2_assets).(token_metadata) = FMap.find fa2_token_id next_state.(fa2_assets).(token_metadata).
+Proof.
+    intros. destruct param. destruct tokenAdmin;
+    try contract_simpl fa2_receive fa2_init.
+    contract_simpl fa2_receive fa2_init. unfold create_token in H1.
+    destruct (FMap.find (tm_token_id tokenMetaData) (token_metadata (fa2_assets prev_state))) eqn:E; try easy.
+    inversion H1. now setoid_rewrite FMap.find_add_ne.
+Qed.
+
+Lemma token_admin_endpoint_preserves_total_supply {prev_state next_state acts chain ctx param fa2_token_id supply metadata} :
+    FMap.find fa2_token_id prev_state.(fa2_assets).(token_total_supply) = Some supply ->
+    FMap.find fa2_token_id prev_state.(fa2_assets).(token_metadata) = Some metadata ->
+    fa2_receive chain ctx prev_state (Some (Admin param)) = Some (next_state, acts) ->
+    FMap.find fa2_token_id prev_state.(fa2_assets).(token_total_supply) = FMap.find fa2_token_id next_state.(fa2_assets).(token_total_supply).
+Proof.
+    intros. destruct param. destruct tokenAdmin;
+    try contract_simpl fa2_receive fa2_init.
+    contract_simpl fa2_receive fa2_init. unfold create_token in H2.
+    destruct (FMap.find (tm_token_id tokenMetaData) (token_metadata (fa2_assets prev_state))) eqn:E; try easy.
+    inversion H2; setoid_rewrite FMap.find_add_ne; easy.
+Qed.
+
+Lemma token_admin_endpoint_preserves_metadata {prev_state next_state acts chain ctx param fa2_token_id supply metadata} :
+    FMap.find fa2_token_id prev_state.(fa2_assets).(token_total_supply) = Some supply ->
+    FMap.find fa2_token_id prev_state.(fa2_assets).(token_metadata) = Some metadata ->
+    fa2_receive chain ctx prev_state (Some (Admin param)) = Some (next_state, acts) ->
+    FMap.find fa2_token_id prev_state.(fa2_assets).(token_metadata) = FMap.find fa2_token_id next_state.(fa2_assets).(token_metadata).
+Proof.
+    intros. destruct param. destruct tokenAdmin;
+    try contract_simpl fa2_receive fa2_init.
+    contract_simpl fa2_receive fa2_init. unfold create_token in H2.
+    destruct (FMap.find (tm_token_id tokenMetaData) (token_metadata (fa2_assets prev_state))) eqn: E; try easy.
+    inversion H2; setoid_rewrite FMap.find_add_ne; easy.  
+Qed.
+
+Lemma create_new_token_changes_nothing_else {prev_state next_state acts chain ctx fa2_token_id new_token_id info_map} :
+    new_token_id <> fa2_token_id ->
+    let new_token_metadata := {|
+        tm_token_id := new_token_id ;
+        tm_token_info := info_map 
+    |} in
+    fa2_receive chain ctx prev_state (Some (Admin (Create_token new_token_metadata))) = Some (next_state, acts) ->
+    FMap.find fa2_token_id prev_state.(fa2_assets).(token_total_supply) = FMap.find fa2_token_id next_state.(fa2_assets).(token_total_supply) /\
+    FMap.find fa2_token_id prev_state.(fa2_assets).(token_metadata) = FMap.find fa2_token_id next_state.(fa2_assets).(token_metadata).
+Proof.
+    intros. split. 
+    - contract_simpl fa2_receive fa2_init. unfold create_token in H1.
+    destruct (FMap.find (tm_token_id new_token_metadata) (token_metadata (fa2_assets prev_state))) eqn:E; try easy.
+    inversion H1. now setoid_rewrite FMap.find_add_ne.
+    - contract_simpl fa2_receive fa2_init. unfold create_token in H1.
+    destruct (FMap.find (tm_token_id new_token_metadata) (token_metadata (fa2_assets prev_state))) eqn:E; try easy.
+    inversion H1. now setoid_rewrite FMap.find_add_ne.
+Qed.
+
+(* If a new token is created the total supply of that token should be 0 *)
+Lemma create_new_token_means_zero_supply {prev_state next_state acts chain ctx fa2_token_id info_map} :
+    let new_token_metadata := {|
+        tm_token_id := fa2_token_id ;
+        tm_token_info := info_map 
+    |} in
+    fa2_receive chain ctx prev_state (Some (Admin (Create_token new_token_metadata))) = Some (next_state, acts) ->
+    FMap.find fa2_token_id next_state.(fa2_assets).(token_total_supply) = Some 0.
+Proof.
+    intros. contract_simpl fa2_receive fa2_init.
+    unfold create_token in H0. destruct (FMap.find (tm_token_id new_token_metadata) (token_metadata (fa2_assets prev_state))) eqn:E; try easy.
+    inversion H0. now setoid_rewrite FMap.find_add.
+Qed.
+
+(* If a new token is created the total supply of that token should be 0 *)
+Lemma create_new_token_means_zero_supply_2 {prev_state next_state acts chain ctx fa2_token_id info_map} :
+    let new_token_metadata := {|
+        tm_token_id := fa2_token_id ;
+        tm_token_info := info_map 
+    |} in
+    fa2_receive chain ctx prev_state (Some (Admin (Create_token new_token_metadata))) = Some (next_state, acts) ->
+    FMap.find fa2_token_id prev_state.(fa2_assets).(token_metadata) = None.
+Proof.
+    intros. contract_simpl fa2_receive fa2_init.
+    unfold create_token in H0. destruct (FMap.find (tm_token_id new_token_metadata) (token_metadata (fa2_assets prev_state))) eqn:E. easy.
+    easy.
+Qed.
+
+(*
 Lemma set_admin_does_not_change_minter {prev_state next_state chain ctx addr acts} :
     fa2_receive chain ctx prev_state (Some (Admin (Token_admin (Set_admin addr)))) = Some (next_state, acts) ->
     prev_state.(fa2_admin).(tas_minter) = next_state.(fa2_admin).(tas_minter).
@@ -421,6 +503,159 @@ Proof.
     cbn. unfold fail_if_not_admin in H. destruct_address_eq; try easy.
 Qed. 
 
+Lemma confirm_admin_does_not_change_minter {prev_state next_state chain ctx acts} :
+    fa2_receive chain ctx prev_state (Some (Admin (Token_admin Confirm_admin))) = Some (next_state, acts) ->
+    prev_state.(fa2_admin).(tas_minter) = next_state.(fa2_admin).(tas_minter).
+Proof.
+    intros. contract_simpl fa2_receive fa2_init.
+    unfold confirm_new_admin in H. destruct (tas_pending_admin (fa2_admin prev_state)) in H; try easy;
+    destruct_address_eq; try easy; now inversion H.
+Qed.
+
+Lemma pause_does_not_change_minter {prev_state next_state chain ctx param acts} :
+    fa2_receive chain ctx prev_state (Some (Admin (Token_admin (Pause param)))) = Some (next_state, acts) ->
+    prev_state.(fa2_admin).(tas_minter) = next_state.(fa2_admin).(tas_minter).
+Proof.
+    intros. contract_simpl fa2_receive fa2_init. unfold fail_if_not_admin in H;
+    destruct_address_eq; try easy; now inversion H.
+Qed. 
+*)
+
+Lemma token_deployed_never_created : forall bstate caddr fa2_token_id token_info (trace: ChainTrace empty_state bstate),
+    env_contracts bstate caddr = Some (FA2_contract : WeakContract) ->
+    exists depinfo cstate,
+    contract_state bstate caddr = Some cstate /\
+    deployment_info Setup trace caddr = Some depinfo
+    /\ 
+    (
+        let metadata := {| tm_token_id := fa2_token_id; tm_token_info := token_info |} in
+        NoDup (map tm_token_id depinfo.(deployment_setup).(tokens)) ->
+        In metadata depinfo.(deployment_setup).(tokens) ->
+        FMap.find fa2_token_id cstate.(fa2_assets).(token_metadata) = Some metadata
+    ).
+Proof.
+    intros. contract_induction; try easy.
+    - intros. unfold init in init_some. cbn in *. unfold fa2_init in init_some.
+    inversion init_some. cbn in *. apply FMap.In_elements. induction (tokens setup).
+    -- easy.
+    -- cbn in *. destruct (tm_token_id a =? fa2_token_id) eqn:E. 
+    rewrite N.eqb_eq in E. rewrite E in H2.
+   Admitted.
+
+              
+
+            
+            
+
+
+
+                
+
+Lemma something_else : forall bstate caddr fa2_token_id (trace: ChainTrace empty_state bstate),
+    env_contracts bstate caddr = Some (FA2_contract : WeakContract) ->
+    exists cstate depinfo inc_calls,
+        contract_state bstate caddr = Some cstate /\
+        deployment_info Setup trace caddr = Some depinfo /\
+        incoming_calls MultiAssetParam trace caddr = Some inc_calls /\
+        (
+        forall state, state.(fa2_admin).(tas_minter) = depinfo.(deployment_setup).(minter_addr) ->
+        let total_supply_opt := FMap.find fa2_token_id cstate.(fa2_assets).(token_total_supply) in
+        let metadata_opt := FMap.find fa2_token_id cstate.(fa2_assets).(token_metadata) in
+        match total_supply_opt with
+        | Some total_supply =>
+            match metadata_opt with
+            | Some metadata =>
+                sumZ (fun callInfo => mint_or_burn fa2_token_id callInfo.(call_msg)) (filter (callFrom state.(fa2_admin).(tas_minter)) inc_calls) = Z.of_N total_supply
+            | None => True
+            end
+        | None =>
+            match metadata_opt with
+            | Some metadata => True
+            | None => True
+            end
+        end
+        ).
+Proof.
+    contract_induction;
+    intros. now apply IH in H.
+    - intros. cbn in *. destruct (FMap.find fa2_token_id (token_total_supply (fa2_assets result))) eqn:E; destruct (FMap.find fa2_token_id (token_metadata (fa2_assets result))) eqn:E2; try easy.
+        + eapply init_total_supply_correct in init_some; now eauto.
+    - unfold callFrom. apply IH in H; try easy.
+    - unfold callFrom in *. unfold receive in receive_some. simpl in *. destruct msg; try easy; destruct m; destruct param.
+        + erewrite <- assets_endpoint_preserves_total_supply; eauto. erewrite <- assets_endpoint_preserves_metadata; eauto.
+        destruct_address_eq; now apply IH.
+        + erewrite <- assets_endpoint_preserves_total_supply; eauto. erewrite <- assets_endpoint_preserves_metadata; eauto.
+        destruct_address_eq; now apply IH.
+        + erewrite <- assets_endpoint_preserves_total_supply; eauto. erewrite <- assets_endpoint_preserves_metadata; eauto.
+        destruct_address_eq; now apply IH.
+        + admit. (* Token admin easy *)
+        + destruct tokenMetaData. destruct (fa2_token_id =? tm_token_id) eqn:E. destruct_address_eq. cbn.
+            -- rewrite N.eqb_eq in E. rewrite E. apply create_new_token_means_zero_supply in receive_some as zero_supply. rewrite zero_supply.
+            destruct (FMap.find tm_token_id (token_metadata (fa2_assets new_state))) eqn: E2; try easy.
+            apply create_new_token_means_zero_supply_2 in receive_some as no_metadata. subst. rewrite no_metadata in IH.
+            intros. admit. (* Token is created *)
+            
+
+            --admit. (* Token is created *)
+            -- rewrite N.eqb_neq in E. eapply create_new_token_changes_nothing_else in receive_some; eauto. inversion receive_some.
+            rewrite <- H0. rewrite <- H1. destruct_address_eq; now apply IH. (* Other token is created*)
+        +
+    
+    
+
+    - unfold callFrom. unfold receive in receive_some. simpl in *. destruct msg. try easy; destruct m. destruct param;
+        try erewrite <- assets_endpoint_preserves_total_supply in H0; eauto; erewrite <- assets_endpoint_preserves_metadata in H0; eauto; destruct_address_eq; now apply IH in H.
+        + erewrite <- token_metadata_always_same in H1.
+            destruct param. destruct tokenAdmin. 
+                destruct_address_eq. now apply IH in H. eauto. eauto.
+
+
+            -- erewrite <- set_admin_preserves_total_supply in H0; eauto. destruct_address_eq; now apply IH in H.
+            -- erewrite <- confirm_admin_preserves_total_supply in H0; eauto. destruct_address_eq; now apply IH in H.
+            -- erewrite <- pause_preserves_total_supply in H0; eauto. destruct_address_eq; now apply IH in H.
+            -- erewrite <- set_minter_preserves_total_supply in H0; eauto. destruct_address_eq; now apply IH in H.
+            --   
+        
+
+Qed.
+
+
+(* Assuming the minter address never changes. The total supply of a token will always be equal to the sum of burn and mints received. *)
+Lemma fa2_correct2 : forall bstate caddr fa2_token_id total_supply metadata (trace: ChainTrace empty_state bstate),
+    env_contracts bstate caddr = Some (FA2_contract : WeakContract) ->
+    exists cstate depinfo inc_calls,
+        contract_state bstate caddr = Some cstate /\
+        deployment_info Setup trace caddr = Some depinfo /\
+        incoming_calls MultiAssetParam trace caddr = Some inc_calls /\
+        (
+        forall state, state.(fa2_admin).(tas_minter) = depinfo.(deployment_setup).(minter_addr) -> (* Minter is never changed *)
+        FMap.find fa2_token_id state.(fa2_assets).(token_metadata) = Some metadata ->
+        FMap.find fa2_token_id cstate.(fa2_assets).(token_total_supply) = Some total_supply -> (* Token is created *)
+        FMap.find fa2_token_id cstate.(fa2_assets).(token_metadata) = Some metadata -> (* Token is created *)
+        sumZ (fun callInfo => mint_or_burn fa2_token_id callInfo.(call_msg)) (filter (callFrom state.(fa2_admin).(tas_minter)) inc_calls) = Z.of_N total_supply
+        ).
+Proof.
+    contract_induction;
+    intros. now apply IH in H.
+    - intros. cbn in *. eapply init_total_supply_correct in init_some; now eauto.
+    - unfold callFrom. apply IH in H; try easy.
+    - unfold callFrom. unfold receive in receive_some. simpl in *. destruct msg. try easy; destruct m. admit. destruct param;
+        try erewrite <- assets_endpoint_preserves_total_supply in H0; eauto; erewrite <- assets_endpoint_preserves_metadata in H0; eauto; destruct_address_eq; now apply IH in H.
+        + erewrite <- token_metadata_always_same in H1.
+            destruct param. destruct tokenAdmin. 
+                destruct_address_eq. now apply IH in H. eauto. eauto.
+
+
+            -- erewrite <- set_admin_preserves_total_supply in H0; eauto. destruct_address_eq; now apply IH in H.
+            -- erewrite <- confirm_admin_preserves_total_supply in H0; eauto. destruct_address_eq; now apply IH in H.
+            -- erewrite <- pause_preserves_total_supply in H0; eauto. destruct_address_eq; now apply IH in H.
+            -- erewrite <- set_minter_preserves_total_supply in H0; eauto. destruct_address_eq; now apply IH in H.
+            --   
+        
+
+Qed.
+
+(*
 Lemma fa2_correct : forall bstate caddr fa2_token_id total_supply (trace: ChainTrace empty_state bstate),
     env_contracts bstate caddr = Some (FA2_contract : WeakContract) ->
     exists cstate depinfo inc_calls,
@@ -435,15 +670,16 @@ Proof.
     contract_induction;
     intros; auto.
     - intros. cbn in *. eapply init_total_supply_correct in init_some; now eauto.
-    - unfold callFrom. unfold receive in receive_some. simpl in *. destruct msg; try easy. destruct m. destruct param. 
-        + erewrite <- transfer_preserves_total_supply in H; eauto. erewrite <- assets_endpoint_does_not_change_minter; eauto.
-        destruct_address_eq; now apply IH.
-        + erewrite <- balance_of_preserves_total_supply in H; eauto. erewrite <- assets_endpoint_does_not_change_minter; eauto.
-        destruct_address_eq; now apply IH.
-        + erewrite <- update_operators_preserves_total_supply in H; eauto. erewrite <- assets_endpoint_does_not_change_minter; eauto.  
+    - unfold callFrom. unfold receive in receive_some. simpl in *. destruct msg. try easy; destruct m. destruct param; try
+        erewrite <- assets_endpoint_preserves_total_supply in H; eauto; erewrite <- assets_endpoint_does_not_change_minter; eauto;
         destruct_address_eq; now apply IH.
         + destruct param. destruct tokenAdmin.
-            -- erewrite <- set_admin_preserves_total_supply in H; eauto. erewrite <- set_admin_does_not_change_minter; eauto.
-            destruct_address_eq; now apply IH.
-            -- 
+        -- erewrite <- set_admin_preserves_total_supply in H; eauto. erewrite <- set_admin_does_not_change_minter; eauto.
+        destruct_address_eq; now apply IH.
+        -- erewrite <- confirm_admin_preserves_total_supply in H; eauto. erewrite <- confirm_admin_does_not_change_minter; eauto.
+        destruct_address_eq; now apply IH.
+        -- erewrite <- pause_preserves_total_supply in H; eauto. erewrite <- pause_does_not_change_minter; eauto.
+        destruct_address_eq; now apply IH.
+        -- erewrite <- set_minter_preserves_total_supply in H; eauto. destruct ().      
+*)
 End FA2_Multi_Asset.
