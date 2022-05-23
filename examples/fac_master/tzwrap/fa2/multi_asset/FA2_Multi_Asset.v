@@ -376,11 +376,12 @@ Lemma init_total_supply_correct {chain ctx setup state fa2_token_id total_supply
     total_supply = 0.
 Proof.
     intros. contract_simpl fa2_receive fa2_init. induction tokens.
-     - cbn in H. setoid_rewrite FMap.find_empty in H. inversion H.
-     - cbn in *. destruct (fa2_token_id =? (tm_token_id a)) eqn:E.
-         + rewrite N.eqb_eq in E. rewrite E in H. setoid_rewrite FMap.find_add in H. inversion H. reflexivity.
-         + rewrite N.eqb_neq in E. setoid_rewrite FMap.find_add_ne in H; try easy.
- Qed.
+    - cbn in H. setoid_rewrite FMap.find_empty in H. inversion H.
+    - cbn in *. destruct (fa2_token_id =? (tm_token_id a)) eqn:E.
+        + rewrite N.eqb_eq in E. rewrite E in H. setoid_rewrite FMap.find_add in H. inversion H. reflexivity.
+        + rewrite N.eqb_neq in E. setoid_rewrite FMap.find_add_ne in H; try easy.
+Qed.
+
 
 Lemma assets_endpoint_does_not_change_minter {prev_state next_state acts chain ctx param} :
     fa2_receive chain ctx prev_state (Some (Assets param)) = Some (next_state, acts) ->
