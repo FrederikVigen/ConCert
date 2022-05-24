@@ -18,18 +18,18 @@ Open Scope N_scope.
 Context {BaseTypes : ChainBase}.
 
 Definition mint_update_balances (txs : list MintBurnTx) (ledger: Ledger) : Ledger :=
-    let mint := fun (tx: MintBurnTx) (l: Ledger) =>
+    let mint := fun (l: Ledger) (tx: MintBurnTx) =>
         inc_balance tx.(mint_burn_owner) tx.(mint_burn_token_id) tx.(mint_burn_amount) l in
-    fold_right mint ledger txs.
+    fold_left mint txs ledger.
 
 Definition mint_update_total_supply (txs : list MintBurnTx) (total_supplies : TokenTotalSupply) : option TokenTotalSupply :=
-    let update := fun (tx : MintBurnTx) (supplies_opt : option TokenTotalSupply) =>
+    let update := fun (supplies_opt : option TokenTotalSupply) (tx : MintBurnTx) =>
         do supplies <- supplies_opt ;
         do ts <- FMap.find tx.(mint_burn_token_id) supplies ;
         let new_s := ts + tx.(mint_burn_amount) in
         Some (FMap.update tx.(mint_burn_token_id) (Some new_s) supplies)
     in
-    fold_right update (Some total_supplies) txs.
+    fold_left update txs (Some total_supplies).
 
 Definition mint_tokens (param : MintBurnTokensParam) (storage : MultiTokenStorage) : option MultiTokenStorage :=
     let new_ledger := mint_update_balances param storage.(ledger) in
@@ -38,20 +38,20 @@ Definition mint_tokens (param : MintBurnTokensParam) (storage : MultiTokenStorag
     Some new_s.
 
 Definition burn_update_balances (txs : list MintBurnTx) (ledger : Ledger) : option Ledger :=
-    let burn := fun (tx : MintBurnTx) (l_opt : option Ledger) =>
+    let burn := fun (l_opt : option Ledger) (tx : MintBurnTx) =>
         do l <- l_opt ;
         dec_balance tx.(mint_burn_owner) tx.(mint_burn_token_id) tx.(mint_burn_amount) l 
     in
-    fold_right burn (Some ledger) txs.
+    fold_left burn txs (Some ledger).
 
 Definition burn_update_total_supply (txs : list MintBurnTx) (total_supplies : TokenTotalSupply) : option TokenTotalSupply :=
-    let update := fun (tx: MintBurnTx) (supplies_opt : option TokenTotalSupply) =>
+    let update := fun (supplies_opt : option TokenTotalSupply) (tx: MintBurnTx) =>
         do supplies <- supplies_opt ;    
         do ts <- FMap.find tx.(mint_burn_token_id) supplies ;
         do new_s <- sub ts tx.(mint_burn_amount) ;
         Some (FMap.update tx.(mint_burn_token_id) (Some new_s) supplies)
     in
-    fold_right update (Some total_supplies) txs.
+    fold_left update txs (Some total_supplies).
 
 Definition burn_tokens (param : MintBurnTokensParam) (storage : MultiTokenStorage) : option MultiTokenStorage :=
     do new_ledger <- burn_update_balances param storage.(ledger) ;
@@ -69,4 +69,17 @@ Definition token_manager (param : TokenManager) (s : MultiTokenStorage) : option
         Some (new_s, [])
     end.
     
+
+Lemma mint_update_balances_app : forall (a : MintBurnTx) (l : list MintBurnTx) (total_supplies : TokenTotalSupply),
+    mint_update_total_supply (a :: l) total_supplies =
+    do total_supplies' <- mint_update_total_supply [a] total_supplies ;
+    mint_update_total_supply l (total_supplies').
+Proof.
+    induction l. cbn in *.
+    - cbn. intros. destruct (FMap.find (mint_burn_token_id a) total_supplies) eqn:E; now setoid_rewrite E.
+    - cbn in *.
+    
+    
+Qed.
+
 End Token_Manager.
