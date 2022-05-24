@@ -519,50 +519,44 @@ Proof.
     intros. easy. 
 Qed.
 
-Lemma distribute_xtz_functionally_correct {chain ctx prev_state next_state hash_list devHash} :
-    ctx_contract_address ctx <> prev_state.(governance).(dev_pool_address) ->
-    prev_state.(governance).(dev_pool_address) <> prev_state.(governance).(staking_address) ->
-    FMap.find devHash prev_state.(fees).(fees_storage_signers) = Some prev_state.(governance).(dev_pool_address) ->
-    ~ In devHash hash_list ->
-    minter_receive chain ctx prev_state (Some (Oracle (Distribute_xtz hash_list))) = Some (next_state, []) ->
-    xtz_balance next_state.(fees).(fees_storage_xtz) next_state.(governance).(dev_pool_address) =
-    xtz_balance prev_state.(fees).(fees_storage_xtz) prev_state.(governance).(dev_pool_address) + 
-    tez_share (xtz_balance prev_state.(fees).(fees_storage_xtz) ctx.(ctx_contract_address)) (prev_state.(governance).(fees_share_rec).(dev_pool)).
+(* Lemma shares_does_not_affect_dev_pool_address {l ctx p signers_in governance hash} :
+    shares ctx p signers_in governance = l ->
+    key_or_registered_address ctx hash signers_in <> governance.(dev_pool_address) ->
+    key_or_registered_address ctx hash signers_in <> governance.(staking_address) -> *)
+
+Lemma distribute_xtz_does_not_affect_dev_pool_addres {ctx p state l} :
+    shares ctx p state.(fees).(fees_storage_xtz) state.(governance) = l ->
+    distribute_xtz ctx p state = 
 Proof.
-    intros. contract_simpl minter_receive minter_init. unfold distribute_xtz. destruct (xtz_balance (fees_storage_xtz (fees prev_state)) (ctx_contract_address ctx)) eqn: E; cbn in *; try easy. unfold shares.
-        rewrite shares_fold_only_adds3. rewrite fold_right_app. rewrite two_elements_is_two_lists. rewrite fold_right_app. cbn in *. induction hash_list; unfold distribute_xtz; cbn in *.
-    - unfold xtz_balance. setoid_rewrite FMap.find_add_ne; try easy. setoid_rewrite FMap.find_add.
-        setoid_rewrite FMap.find_add_ne; try easy. 
-        destruct (FMap.find (dev_pool_address (governance prev_state)) (fees_storage_xtz (fees prev_state))) eqn: E1; setoid_rewrite E1; try easy.
-    - destruct (FMap.find (staking_address (governance prev_state)) (fees_storage_xtz (fees prev_state))) eqn: E1.
-        + destruct (staking (fees_share_rec (governance prev_state))) eqn: E2.
-            * setoid_rewrite FMap.find_add_ne; try easy.
-                destruct (FMap.find (dev_pool_address (governance prev_state)) (fees_storage_xtz (fees prev_state))) eqn: E3.
-                -- setoid_rewrite E3. destruct (dev_pool (fees_share_rec (governance prev_state))) eqn: E4.
-                    --- cbn in *. apply not_or_is_and in H2. inversion H2. apply IHhash_list in H6. rewrite <- H6. unfold key_or_registered_address.
-                        destruct (FMap.find a (fees_storage_signers (fees prev_state))) eqn: E5.
-                        ----  easy.
-
-
-
-    intros. contract_simpl minter_receive minter_init. unfold distribute_FMap.find (dev_pool_address (governance prev_state))
-    (fees_storage_xtz (fees prev_state))
-    xtz.
-    destruct (xtz_balance (fees_storage_xtz (fees prev_state)) (ctx_contract_address ctx)) eqn: E; cbn in *; try easy.
-    unfold shares. rewrite shares_fold_only_adds3. rewrite fold_right_app. rewrite two_elements_is_two_lists.
-    rewrite fold_right_app. cbn. destruct (staking (fees_share_rec (governance prev_state))) eqn: E1.
-    - destruct (dev_pool (fees_share_rec (governance prev_state))) eqn: E2. cbn in*. 
-        + destruct (FMap.find (staking_address (governance prev_state)) (fees_storage_xtz (fees prev_state))) eqn: E3.
-            * setoid_rewrite FMap.find_add_ne. destruct (FMap.find (dev_pool_address (governance prev_state)) (fees_storage_xtz (fees prev_state))) eqn: E4.
-                -- setoid_rewrite E4. induction hash_list.
-                    --- cbn in *. rewrite N.add_0_l. unfold xtz_balance. setoid_rewrite FMap.find_add_ne; try easy.
-                        setoid_rewrite FMap.find_add. rewrite E4. easy.
-                    --- cbn in *.         
+    intros. unfold distribute_xtz.
+    destruct (xtz_balance (fees_storage_xtz (fees state)) (ctx_contract_address ctx) =? 0); try easy.
+    cbn. setoid_rewrite FMap.find_add_ne.
     
-    remember ([(dev_pool_address (governance prev_state),
-    dev_pool (fees_share_rec (governance prev_state)));
-   (staking_address (governance prev_state),
-   staking (fees_share_rec (governance prev_state)))]). apply in_intro in Heql. inversion Heql. apply shares_fold_only_adds in H. 
+
+
+Lemma distribute_xtz_functionally_correct {chain ctx prev_state next_state hash_list distFees l'} :
+
+    shares ctx hash_list prev_state.(fees).(fees_storage_signers) prev_state.(governance) = l' ->
+    minter_receive chain ctx prev_state (Some (Oracle (Distribute_xtz hash_list))) = Some (next_state, []) ->
+    let fees_sum_of_addresses := 
+        fun (l : list Address) (state : State) => 
+            fold_right (fun (addr: Address) (acc : N) => acc + xtz_balance state.(fees).(fees_storage_xtz) addr) 0 l in
+    xtz_balance prev_state.(fees).(fees_storage_xtz) ctx.(ctx_contract_address) - xtz_balance next_state.(fees).(fees_storage_xtz) ctx.(ctx_contract_address) = distFees ->
+    (fees_sum_of_addresses (map fst l') prev_state) = fees_sum_of_addresses (map fst l') next_state + distFees.
+Proof.
+    intros. contract_simpl minter_receive minter_init. unfold distribute_xtz.
+    destruct (xtz_balance (fees_storage_xtz (fees prev_state)) (ctx_contract_address ctx) =? 0) eqn:E.
+    - apply N.eqb_eq in E. rewrite E. cbn. rewrite N.add_0_r. easy.
+    - cbn. unfold xtz_balance.
+
+
+    - unfold distribute_xtz. cbn. 
+    destruct (xtz_balance (fees_storage_xtz (fees prev_state)) (ctx_contract_address ctx) =? 0) eqn:E.
+        + rewrite N.eqb_eq in E. rewrite E. cbn. easy.
+        + unfold xtz_balance. setoid_rewrite FMap.find_add_ne; try easy. 
+        setoid_rewrite FMap.find_add. setoid_rewrite FMap.find_add_ne; try easy.
+        destruct (FMap.find (dev_pool_address (governance prev_state)) (fees_storage_xtz (fees prev_state))) eqn: E1; setoid_rewrite E1; easy.
+    - apply not_or_is_and in H2. inversion H2. apply IHhash_list in H6. rewrite <- H6. cbn.
 
 Qed.  
      
