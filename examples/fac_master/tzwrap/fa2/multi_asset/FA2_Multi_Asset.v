@@ -577,9 +577,19 @@ Proof.
     intros.
 
     
-    contract_simpl fa2_receive fa2_init. induction txs.
+    contract_simpl fa2_receive fa2_init.
+    
+    
+    
+    
+    
+    
+    induction txs.
     - cbn in *. inversion H3. subst. assert(old_supply = new_supply); try easy.
-    -   
+    - destruct (mint_burn_token_id a =? fa2_token_id) eqn:E.
+        -- admit.
+        -- cbn. setoid_rewrite E. apply IHtxs.
+            ---  
     
         
 

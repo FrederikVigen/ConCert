@@ -78,8 +78,7 @@ Proof.
     induction l. cbn in *.
     - cbn. intros. destruct (FMap.find (mint_burn_token_id a) total_supplies) eqn:E; now setoid_rewrite E.
     - cbn in *.
-    
-    
-Qed.
+Admitted.
+
 
 End Token_Manager.
