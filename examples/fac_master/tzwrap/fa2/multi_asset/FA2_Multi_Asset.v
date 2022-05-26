@@ -558,6 +558,20 @@ Proof.
     intros. contract_simpl fa2_receive fa2_init. easy.
 Qed.
 
+Lemma burn_update_none_is_none {txs} :
+    let update := fun (supplies_opt : option TokenTotalSupply) (tx: MintBurnTx) =>
+        do supplies <- supplies_opt ;    
+        do ts <- FMap.find tx.(mint_burn_token_id) supplies ;
+        do new_s <- sub ts tx.(mint_burn_amount) ;
+        Some (FMap.update tx.(mint_burn_token_id) (Some new_s) supplies)
+    in
+    fold_left update txs None = None.
+Proof.
+    intros. induction txs.
+    - cbn. easy.
+    - cbn. easy.
+Qed.
+
 Lemma update_none_is_none {txs} :
 let update := fun (supplies_opt : option TokenTotalSupply) (tx : MintBurnTx) =>
         do supplies <- supplies_opt ;
@@ -739,6 +753,13 @@ Lemma mint_preserves_metadata {prev_state next_state chain ctx acts p} :
 Proof.
     intros. contract_simpl fa2_receive fa2_init. easy.
 Qed.
+
+Lemma burn_preserves_metadata {prev_state next_state chain ctx acts p} :
+    fa2_receive chain ctx prev_state (Some (Tokens (BurnTokens p))) = Some (next_state, acts) ->
+    prev_state.(fa2_assets).(token_metadata) = next_state.(fa2_assets).(token_metadata).
+Proof.
+    intros. contract_simpl fa2_receive fa2_init. easy.
+Qed.
     
 Lemma mint_correct {prev_state next_state chain ctx acts fa2_token_id txs old_supply new_supply} :
     fa2_receive chain ctx prev_state (Some (Tokens (MintTokens txs))) = Some (next_state, acts) ->
@@ -851,15 +872,129 @@ Proof.
         + apply N.eqb_eq in E. subst. cbn in *. setoid_rewrite FMap.find_add in H. easy.
         + apply N.eqb_neq in E. setoid_rewrite FMap.find_add_ne in H; try easy. apply IHl in H; try easy.
             setoid_rewrite FMap.find_add_ne; try easy.
-    - intros. unfold callFrom in *. unfold receive in receive_some. simpl in *. destruct msg; try easy; destruct m; destruct param.
+    - intros. unfold receive in receive_some. simpl in *. destruct msg; try easy; destruct m; destruct param.
         + erewrite <- assets_endpoint_preserves_metadata in H; eauto.
             apply IH in H. erewrite <- assets_endpoint_preserves_total_supply; eauto. 
         + erewrite <- assets_endpoint_preserves_metadata in H; eauto.
             apply IH in H. erewrite <- assets_endpoint_preserves_total_supply; eauto. 
-            + erewrite <- assets_endpoint_preserves_metadata in H; eauto.
+        + erewrite <- assets_endpoint_preserves_metadata in H; eauto.
             apply IH in H. erewrite <- assets_endpoint_preserves_total_supply; eauto.
-         
-
+        + destruct tokenAdmin.
+            * erewrite <- set_admin_preserves_metadata in H; eauto.
+                erewrite <- set_admin_preserves_total_supply; eauto.
+            * erewrite <- confirm_admin_preserves_metadata in H; eauto.
+                erewrite <- confirm_admin_preserves_total_supply; eauto.
+            * erewrite <- pause_preserves_metadata in H; eauto.
+                erewrite <- pause_preserves_total_supply; eauto.
+            * erewrite <- set_minter_preserves_metadata in H; eauto.
+                erewrite <- set_minter_preserves_total_supply; eauto.
+        + destruct tokenMetaData. destruct (tm_token_id =? fa2_token_id) eqn: E.
+            * apply N.eqb_eq in E. subst. cbn in *. unfold create_token in receive_some. cbn in *.
+                destruct (FMap.find fa2_token_id (token_metadata (fa2_assets prev_state))) eqn: E1; try easy.
+                inversion receive_some. subst. cbn in *. setoid_rewrite FMap.find_add in H. easy.
+            * rewrite N.eqb_neq in E. eapply create_new_token_changes_nothing_else in receive_some; eauto. 
+                inversion receive_some. setoid_rewrite <- H1 in H. apply IH in H. easy.
+        + erewrite <- mint_preserves_metadata in H; eauto. apply IH in H. cbn in *.
+            destruct (fail_if_not_minter ctx (fa2_admin prev_state)); try easy. generalize dependent (token_total_supply (fa2_assets prev_state)).
+            generalize dependent (ledger (fa2_assets prev_state)). unfold mint_update_total_supply. induction p; intros; cbn in *; try easy.
+            * inversion receive_some. easy.
+            * cbn in *. destruct (mint_burn_token_id a =? fa2_token_id) eqn: E2.
+                -- apply N.eqb_eq in E2. subst. setoid_rewrite H in receive_some. rewrite update_none_is_none in receive_some. easy.
+                -- destruct (FMap.find (mint_burn_token_id a) t0) eqn: E3.
+                    --- setoid_rewrite E3 in receive_some. 
+                        setoid_rewrite <- (FMap.find_add_ne (mint_burn_token_id a) _ (n+ mint_burn_amount a) _) in H.
+                        ---- eapply IHp in H; try easy.
+                        ---- easy.
+                    --- setoid_rewrite E3 in receive_some. rewrite update_none_is_none in receive_some. easy.
+        + erewrite <- burn_preserves_metadata in H; eauto. apply IH in H. cbn in *.
+            destruct (fail_if_not_minter ctx (fa2_admin prev_state)); try easy. destruct (burn_update_balances p (ledger (fa2_assets prev_state))); try easy. generalize dependent (token_total_supply (fa2_assets prev_state)).
+            generalize dependent (ledger (fa2_assets prev_state)). unfold burn_update_total_supply. induction p; intros; try easy.
+            * inversion receive_some. easy.
+            * destruct (mint_burn_token_id a =? fa2_token_id) eqn: E2; try easy;
+                destruct (burn_update_balances (a :: p) l); try easy; cbn in *.
+                -- apply N.eqb_eq in E2. subst. 
+                    setoid_rewrite H0 in receive_some. cbn in *. rewrite burn_update_none_is_none in receive_some. easy.
+                -- destruct (FMap.find (mint_burn_token_id a) t0) eqn: E3.
+                    --- setoid_rewrite E3 in receive_some. destruct (n <? mint_burn_amount a) eqn: E4; cbn in *.
+                        ---- rewrite burn_update_none_is_none in receive_some. easy.
+                        ---- apply N.eqb_eq in E2. subst. rewrite H0 in E3. easy.
+                    --- setoid_rewrite E3 in receive_some. rewrite burn_update_none_is_none in receive_some. easy.
+                -- destruct (FMap.find (mint_burn_token_id a) t0) eqn: E3.
+                    --- setoid_rewrite E3 in receive_some. destruct (n <? mint_burn_amount a) eqn: E4; cbn in *.
+                        ---- rewrite burn_update_none_is_none in receive_some. easy.
+                        ---- setoid_rewrite <- (FMap.find_add_ne (mint_burn_token_id a) _ (n - mint_burn_amount a) _) in H0; try easy.
+                    --- setoid_rewrite E3 in receive_some. rewrite burn_update_none_is_none in receive_some. easy.
+                -- destruct (FMap.find (mint_burn_token_id a) t0) eqn: E3.
+                --- setoid_rewrite E3 in receive_some. destruct (n <? mint_burn_amount a) eqn: E4; cbn in *.
+                    ---- rewrite burn_update_none_is_none in receive_some. easy.
+                    ---- setoid_rewrite <- (FMap.find_add_ne (mint_burn_token_id a) _ (n - mint_burn_amount a) _) in H0; try easy.
+                --- setoid_rewrite E3 in receive_some. rewrite burn_update_none_is_none in receive_some. easy.
+    - intros.
+        simpl in receive_some.
+        destruct msg in receive_some; try easy. destruct m; destruct param.
+        + erewrite <- assets_endpoint_preserves_metadata in H; eauto.
+            apply IH in H. erewrite <- assets_endpoint_preserves_total_supply; eauto. 
+        + erewrite <- assets_endpoint_preserves_metadata in H; eauto.
+            apply IH in H. erewrite <- assets_endpoint_preserves_total_supply; eauto. 
+        + erewrite <- assets_endpoint_preserves_metadata in H; eauto.
+            apply IH in H. erewrite <- assets_endpoint_preserves_total_supply; eauto.
+        + destruct tokenAdmin.
+            * erewrite <- set_admin_preserves_metadata in H; eauto.
+                erewrite <- set_admin_preserves_total_supply; eauto.
+            * erewrite <- confirm_admin_preserves_metadata in H; eauto.
+                erewrite <- confirm_admin_preserves_total_supply; eauto.
+            * erewrite <- pause_preserves_metadata in H; eauto.
+                erewrite <- pause_preserves_total_supply; eauto.
+            * erewrite <- set_minter_preserves_metadata in H; eauto.
+                erewrite <- set_minter_preserves_total_supply; eauto.
+        + destruct tokenMetaData. destruct (tm_token_id =? fa2_token_id) eqn: E.
+            * apply N.eqb_eq in E. subst. cbn in *. unfold create_token in receive_some. cbn in *.
+                destruct (FMap.find fa2_token_id (token_metadata (fa2_assets prev_state))) eqn: E1; try easy.
+                inversion receive_some. subst. cbn in *. setoid_rewrite FMap.find_add in H. easy.
+            * rewrite N.eqb_neq in E. eapply create_new_token_changes_nothing_else in receive_some; eauto. 
+                inversion receive_some. setoid_rewrite <- H1 in H. apply IH in H. easy.
+        + erewrite <- mint_preserves_metadata in H; eauto. apply IH in H. cbn in *.
+            destruct (fail_if_not_minter ctx (fa2_admin prev_state)); try easy. generalize dependent (token_total_supply (fa2_assets prev_state)).
+            generalize dependent (ledger (fa2_assets prev_state)). unfold mint_update_total_supply. induction p; intros; cbn in *; try easy.
+            * inversion receive_some. easy.
+            * cbn in *. destruct (mint_burn_token_id a =? fa2_token_id) eqn: E2.
+                -- apply N.eqb_eq in E2. subst. setoid_rewrite H in receive_some. rewrite update_none_is_none in receive_some. easy.
+                -- destruct (FMap.find (mint_burn_token_id a) t0) eqn: E3.
+                    --- setoid_rewrite E3 in receive_some. 
+                        setoid_rewrite <- (FMap.find_add_ne (mint_burn_token_id a) _ (n+ mint_burn_amount a) _) in H.
+                        ---- eapply IHp in H; try easy.
+                        ---- easy.
+                    --- setoid_rewrite E3 in receive_some. rewrite update_none_is_none in receive_some. easy.
+        + erewrite <- burn_preserves_metadata in H; eauto. apply IH in H. cbn in *.
+            destruct (fail_if_not_minter ctx (fa2_admin prev_state)); try easy. destruct (burn_update_balances p (ledger (fa2_assets prev_state))); try easy. generalize dependent (token_total_supply (fa2_assets prev_state)).
+            generalize dependent (ledger (fa2_assets prev_state)). unfold burn_update_total_supply. induction p; intros; try easy.
+            * inversion receive_some. easy.
+            * destruct (mint_burn_token_id a =? fa2_token_id) eqn: E2; try easy;
+                destruct (burn_update_balances (a :: p) l); try easy; cbn in *.
+                -- apply N.eqb_eq in E2. subst. 
+                    setoid_rewrite H0 in receive_some. cbn in *. rewrite burn_update_none_is_none in receive_some. easy.
+                -- destruct (FMap.find (mint_burn_token_id a) t0) eqn: E3.
+                    --- setoid_rewrite E3 in receive_some. destruct (n <? mint_burn_amount a) eqn: E4; cbn in *.
+                        ---- rewrite burn_update_none_is_none in receive_some. easy.
+                        ---- apply N.eqb_eq in E2. subst. rewrite H0 in E3. easy.
+                    --- setoid_rewrite E3 in receive_some. rewrite burn_update_none_is_none in receive_some. easy.
+                -- destruct (FMap.find (mint_burn_token_id a) t0) eqn: E3.
+                    --- setoid_rewrite E3 in receive_some. destruct (n <? mint_burn_amount a) eqn: E4; cbn in *.
+                        ---- rewrite burn_update_none_is_none in receive_some. easy.
+                        ---- setoid_rewrite <- (FMap.find_add_ne (mint_burn_token_id a) _ (n - mint_burn_amount a) _) in H0; try easy.
+                    --- setoid_rewrite E3 in receive_some. rewrite burn_update_none_is_none in receive_some. easy.
+                -- destruct (FMap.find (mint_burn_token_id a) t0) eqn: E3.
+                --- setoid_rewrite E3 in receive_some. destruct (n <? mint_burn_amount a) eqn: E4; cbn in *.
+                    ---- rewrite burn_update_none_is_none in receive_some. easy.
+                    ---- setoid_rewrite <- (FMap.find_add_ne (mint_burn_token_id a) _ (n - mint_burn_amount a) _) in H0; try easy.
+                --- setoid_rewrite E3 in receive_some. rewrite burn_update_none_is_none in receive_some. easy.
+    - intros. instantiate (AddBlockFacts := fun _ _ _ _ _ _ => True).
+        unset_all; subst.
+        destruct_chain_step; auto.
+        destruct_action_eval; auto.
+        + cbn. instantiate (DeployFacts := fun _ ctx => True). easy.
+        + cbn. instantiate (CallFacts := fun _ ctx _ _ => True). easy.
+Qed. 
 
 Lemma fa2_no_mint_before_token_created : forall bstate caddr fa2_token_id (trace: ChainTrace empty_state bstate),
     env_contracts bstate caddr = Some (FA2_contract : WeakContract) ->
@@ -937,7 +1072,7 @@ Proof.
         destruct (FMap.find fa2_token_id (token_total_supply (fa2_assets new_state))) eqn:E2;
         destruct (FMap.find fa2_token_id (token_metadata (fa2_assets new_state))) eqn:E3; try easy.
             ++ cbn. apply create_new_token_means_zero_supply in receive_some as H.
-            apply N.eqb_eq in E. subst. rewrite H in E2. inversion E2. admit.
+            apply N.eqb_eq in E. subst. rewrite H in E2. inversion E2. cbn in *. admit.
 
             ++ destruct_address_eq; cbn.
             -- rewrite N.eqb_neq in E. eapply create_new_token_changes_nothing_else in receive_some; eauto. inversion receive_some.
