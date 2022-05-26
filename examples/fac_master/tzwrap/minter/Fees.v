@@ -48,7 +48,7 @@ Definition withdraw_xtz (ctx : ContractCallContext) (a : option N) (s : XTZLedge
 Definition tx_result : Type := list TransferDestination * TokenLedger.
 
 Definition generate_tx_destinations (ctx: ContractCallContext) (p : WithdrawTokensParam) (ledger: TokenLedger) : tx_result := 
-    fold_right (fun (token_id : N) (acc : tx_result) => 
+    fold_left (fun (acc : tx_result) (token_id : N) => 
         let (dsts, s) := acc in
         let key := (p.(wtp_fa2_tokens), token_id) in
         let available := token_balance ledger ctx.(ctx_from) key in
@@ -60,7 +60,7 @@ Definition generate_tx_destinations (ctx: ContractCallContext) (p : WithdrawToke
         |} in
         let new_ledger := FMap.remove (ctx.(ctx_from), key) s in
         ((new_dst :: dsts), new_ledger) 
-    ) ([], ledger) p.(wtp_tokens).
+    ) p.(wtp_tokens) ([], ledger).
 
 Definition transfer_operation (fa2 from: Address) (dests : list TransferDestination): ActionBody :=
     let tx : Transfer := {|

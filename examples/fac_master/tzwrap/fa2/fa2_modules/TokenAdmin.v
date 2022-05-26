@@ -42,14 +42,14 @@ Definition confirm_new_admin (ctx : ContractCallContext) (s : TokenAdminStorage)
     end.
 
 Definition pause (tokens : list PauseParam) (s : TokenAdminStorage) :=
-    let new_paused := fold_right
-        (fun (t : PauseParam) (paused_set : PausedTokensSet) =>
+    let new_paused := fold_left
+        (fun (paused_set : PausedTokensSet) (t : PauseParam) =>
             if t.(pp_paused)
             then FMap.add t.(pp_token_id) tt paused_set
             else FMap.remove t.(pp_token_id) paused_set
 
         )
-        s.(tas_paused) tokens in
+        tokens s.(tas_paused) in
     s<| tas_paused := new_paused |>.
 
 Definition fail_if_not_admin (ctx : ContractCallContext) (a : TokenAdminStorage) : option TokenAdminStorage :=
@@ -63,17 +63,17 @@ Definition fail_if_not_minter (ctx : ContractCallContext) (a : TokenAdminStorage
     else None.
 
 Definition fail_if_paused_tokens (transfers : list Transfer) (paused : PausedTokensSet) : option unit :=
-    fold_right
-    ( fun (tx : Transfer) (acc_opt : option unit) =>
+    fold_left
+    ( fun (acc_opt : option unit) (tx : Transfer) =>
         do _ <- acc_opt ;
-        fold_right (fun (txd : TransferDestination) (acc_opt_inner : option unit) =>
+        fold_left (fun (acc_opt_inner : option unit) (txd : TransferDestination) =>
             do _ <- acc_opt_inner ;
             match FMap.find txd.(dst_token_id) paused with
             | Some _ => None
             | None => Some tt
             end
-        ) (Some tt) tx.(txs)
-    ) (Some tt) transfers. 
+        ) tx.(txs) (Some tt)
+    ) transfers (Some tt). 
 
 Definition fail_if_paused (a : TokenAdminStorage) (param : FA2EntryPoints) :=
     match param with

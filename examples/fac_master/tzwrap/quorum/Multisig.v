@@ -81,7 +81,7 @@ Definition check_threshold (signatures : Signatures) (threshold : N) : option un
 
 (*TODO: mock signature failures*)
 Definition check_signature (p: (N * Address * ContractInvocation)) (signatures : Signatures) (threshold : N) (signers: (FMap SignerId N)) : option unit := 
-    let iter := fun (elem : (SignerId * N)) (acc: N) =>
+    let iter := fun (acc: N) (elem : (SignerId * N)) =>
         let (i, signature) := elem in 
         let key := match get_key i signers with
             | Some n => n
@@ -91,7 +91,7 @@ Definition check_signature (p: (N * Address * ContractInvocation)) (signatures :
         (* Mock signature check *)
         if Crypto.check_signature key signature p then acc + 1 else acc
     in 
-    let r := fold_right iter 0 signatures in
+    let r := fold_left iter signatures 0 in
     throwIf (r <? threshold).
 
 Definition apply_minter (ctx: ContractCallContext) (p: SignerAction) (s: State) : option (list ActionBody) :=
@@ -297,9 +297,9 @@ Proof.
 Qed.
 
 Lemma check_signature_aux {sigs} :
-    fold_right 
-    (fun (elem : SignerId * N) (acc : N) => let (_, _) := elem in acc + 1) 
-        0 sigs = N.of_nat (length sigs).
+    fold_left 
+    (fun (acc : N) (elem : SignerId * N) => let (_, _) := elem in acc + 1) 
+        sigs 0 = N.of_nat (length sigs).
 Proof.
     induction sigs; try easy. cbn. rewrite IHsigs. easy.
 Qed.
