@@ -552,7 +552,7 @@ Proof.
 
                 
 
-Lemma something_else : forall bstate caddr fa2_token_id (trace: ChainTrace empty_state bstate),
+(* Lemma something_else : forall bstate caddr fa2_token_id (trace: ChainTrace empty_state bstate),
     env_contracts bstate caddr = Some (FA2_contract : WeakContract) ->
     exists cstate depinfo inc_calls,
         contract_state bstate caddr = Some cstate /\
@@ -618,9 +618,9 @@ Proof.
             --   
         
 
-Qed.
+Qed. *)
 
-
+(* 
 (* Assuming the minter address never changes. The total supply of a token will always be equal to the sum of burn and mints received. *)
 Lemma fa2_correct2 : forall bstate caddr fa2_token_id total_supply metadata (trace: ChainTrace empty_state bstate),
     env_contracts bstate caddr = Some (FA2_contract : WeakContract) ->
@@ -654,7 +654,7 @@ Proof.
             --   
         
 
-Qed.
+Qed. *)
 
 (*
 Lemma fa2_correct : forall bstate caddr fa2_token_id total_supply (trace: ChainTrace empty_state bstate),
