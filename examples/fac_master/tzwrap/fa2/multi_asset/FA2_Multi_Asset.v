@@ -596,7 +596,7 @@ Proof.
     - destruct ts; try easy.
 Qed.
 
-Lemma update_comm2 : forall txs t a1 a2,
+Lemma update_comm : forall txs t a1 a2,
     let update := fun (supplies_opt : option TokenTotalSupply) (tx : MintBurnTx) =>
         do supplies <- supplies_opt ;
         do ts <- FMap.find tx.(mint_burn_token_id) supplies ;
@@ -657,7 +657,7 @@ Proof.
     - intros. cbn in H. destruct (ts) eqn:E; try easy.  
     - intros. rewrite update_app2 in H. rewrite update_app2 in H.
         unfold update in H.
-        rewrite update_comm2 in H.
+        rewrite update_comm in H.
         rewrite <- update_app in H.
         apply IHtxs in H.
         rewrite <- update_app in H.
