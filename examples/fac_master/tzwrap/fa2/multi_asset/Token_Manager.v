@@ -70,15 +70,4 @@ Definition token_manager (param : TokenManager) (s : MultiTokenStorage) : option
     end.
     
 
-Lemma mint_update_balances_app : forall (a : MintBurnTx) (l : list MintBurnTx) (total_supplies : TokenTotalSupply),
-    mint_update_total_supply (a :: l) total_supplies =
-    do total_supplies' <- mint_update_total_supply [a] total_supplies ;
-    mint_update_total_supply l (total_supplies').
-Proof.
-    induction l. cbn in *.
-    - cbn. intros. destruct (FMap.find (mint_burn_token_id a) total_supplies) eqn:E; now setoid_rewrite E.
-    - cbn in *.
-Admitted.
-
-
 End Token_Manager.

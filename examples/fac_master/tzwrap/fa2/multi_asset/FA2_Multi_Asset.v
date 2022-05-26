@@ -558,38 +558,246 @@ Proof.
     intros. contract_simpl fa2_receive fa2_init. easy.
 Qed.
 
+Lemma update_none_is_none {txs} :
+let update := fun (supplies_opt : option TokenTotalSupply) (tx : MintBurnTx) =>
+        do supplies <- supplies_opt ;
+        do ts <- FMap.find tx.(mint_burn_token_id) supplies ;
+        let new_s := ts + tx.(mint_burn_amount) in
+        Some (FMap.update tx.(mint_burn_token_id) (Some new_s) supplies)
+    in
+    fold_left update txs None = None.
+Proof.
+    intros. induction txs.
+    - cbn. easy.
+    - cbn. easy.
+Qed.
+
+Lemma update_app {txs ts a} :
+    let update := fun (supplies_opt : option TokenTotalSupply) (tx : MintBurnTx) =>
+        do supplies <- supplies_opt ;
+        do ts <- FMap.find tx.(mint_burn_token_id) supplies ;
+        let new_s := ts + tx.(mint_burn_amount) in
+        Some (FMap.update tx.(mint_burn_token_id) (Some new_s) supplies)
+    in
+    fold_left update (a :: txs) ts =
+    fold_left update txs (update ts a).
+Proof.
+    intros. cbn in *. induction txs.
+    - cbn. easy.
+    - destruct ts; try easy.
+Qed.
+
+Lemma update_app2 : forall (update : option TokenTotalSupply -> MintBurnTx -> option TokenTotalSupply) txs ts a,
+    fold_left update (a :: txs) ts =
+    fold_left update txs (update ts a).
+Proof.
+    intros. cbn in *. induction txs.
+    - cbn. easy.
+    - destruct ts; try easy.
+Qed.
+
+Lemma update_comm2 : forall txs t a1 a2,
+    let update := fun (supplies_opt : option TokenTotalSupply) (tx : MintBurnTx) =>
+        do supplies <- supplies_opt ;
+        do ts <- FMap.find tx.(mint_burn_token_id) supplies ;
+        let new_s := ts + tx.(mint_burn_amount) in
+        Some (FMap.update tx.(mint_burn_token_id) (Some new_s) supplies)
+    in
+    fold_left update txs (update (update t a1) a2) =
+    fold_left update txs (update (update t a2) a1).
+Proof.
+    intros.
+    destruct t eqn:T; try easy. rename t0 into ts. 
+    setoid_rewrite <- (update_app2 update [] (update (Some ts) a1) a2). 
+    setoid_rewrite <- (update_app2 update [a2] (Some ts) a1).
+    setoid_rewrite <- (update_app2 update [] (update (Some ts) a2) a1). 
+    setoid_rewrite <- (update_app2 update [a1] (Some ts) a2).
+    cbn.
+    destruct (FMap.find (mint_burn_token_id a1)) eqn:E; 
+    destruct (FMap.find (mint_burn_token_id a2)) eqn:E2;
+    destruct (mint_burn_token_id a1 =? mint_burn_token_id a2) eqn:E3.
+    - apply N.eqb_eq in E3. setoid_rewrite E3. setoid_rewrite E3 in E.
+    setoid_rewrite E3 in E2. setoid_rewrite FMap.find_add in E2.
+    inversion E2.
+    setoid_rewrite E. setoid_rewrite E3.
+    setoid_rewrite FMap.find_add. f_equal.
+    setoid_rewrite E3.
+    setoid_rewrite FMap.add_add.
+    easy.
+    - apply N.eqb_neq in E3.
+    setoid_rewrite FMap.find_add_ne in E2; try easy.
+    setoid_rewrite E2.
+    setoid_rewrite FMap.find_add_ne; try easy.
+    setoid_rewrite E.
+    f_equal.
+    now rewrite FMap.add_commute.
+    - apply N.eqb_eq in E3. setoid_rewrite E3 in E. setoid_rewrite E3 in E2. setoid_rewrite FMap.find_add in E2. easy.
+    - apply N.eqb_neq in E3.
+    setoid_rewrite FMap.find_add_ne in E2; try easy.
+    now setoid_rewrite E2.
+    - apply N.eqb_eq in E3. setoid_rewrite E3 in E. setoid_rewrite E in E2. easy.
+    - apply N.eqb_neq in E3. 
+    setoid_rewrite FMap.find_add_ne; try easy.
+    now setoid_rewrite E.
+    - easy.
+    - easy.
+Qed.
+
+Lemma update_app_not_none {a txs ts} :
+let update := fun (supplies_opt : option TokenTotalSupply) (tx : MintBurnTx) =>
+        do supplies <- supplies_opt ;
+        do ts <- FMap.find tx.(mint_burn_token_id) supplies ;
+        let new_s := ts + tx.(mint_burn_amount) in
+        Some (FMap.update tx.(mint_burn_token_id) (Some new_s) supplies)
+    in
+    fold_left update (a :: txs) ts <> None ->
+    fold_left update (txs) ts <> None.
+Proof.
+    intros. generalize dependent ts. induction txs.
+    - intros. cbn in H. destruct (ts) eqn:E; try easy.  
+    - intros. rewrite update_app2 in H. rewrite update_app2 in H.
+        unfold update in H.
+        rewrite update_comm2 in H.
+        rewrite <- update_app in H.
+        apply IHtxs in H.
+        rewrite <- update_app in H.
+        easy.
+Qed.
+
+(*
+Lemma never_added_to_state {id txs ts prev_state} :
+    FMap.find id (token_total_supply (fa2_assets prev_state)) = None ->
+    mint_update_total_supply (txs) (token_total_supply (fa2_assets prev_state)) = Some ts ->
+    FMap.find id ts = None.
+Proof.
+    intros. generalize dependent prev_state. generalize dependent ts. induction txs. 
+    - intros. cbn in *. inversion H0. easy.
+    - intros. unfold mint_update_total_supply in H0. rewrite update_app2 in H0.
+    unfold mint_update_total_supply in IHtxs. rewrite update_assoc in IHtxs.
+*)
+    
+
+Lemma some_is_not_none {A} : forall (x : option A) (y : A),
+    x = Some y ->
+    x <> None.
+Proof.
+    easy.
+Qed.
+
+Lemma mint_app_is_some {prev_state a txs ts} :
+    mint_update_total_supply (a :: txs) (token_total_supply (fa2_assets prev_state)) = Some ts ->
+    exists t, mint_update_total_supply (txs) (token_total_supply (fa2_assets prev_state)) = Some t.
+Proof.
+    intros. apply some_is_not_none in H. unfold mint_update_total_supply in H.
+    apply update_app_not_none in H. unfold not in H.
+    destruct (fold_left
+    (fun (supplies_opt : option TokenTotalSupply) (tx : MintBurnTx) =>
+     do supplies <- supplies_opt;
+     do ts <- FMap.find (mint_burn_token_id tx) supplies;
+     Some
+       (FMap.update (mint_burn_token_id tx)
+          (Some (ts + mint_burn_amount tx)) supplies)) txs
+    (Some (token_total_supply (fa2_assets prev_state)))) eqn:E.
+    - easy. 
+    - apply H in E. easy.
+Qed. 
+
+Lemma mint_app_is_some_supply {prev_state txs a t0 fa2_token_id new_supply} :
+FMap.find fa2_token_id
+       (token_total_supply
+          (fa2_assets
+             (setter_from_getter_MultiAssetStorage_fa2_assets
+                (fun _ : MultiTokenStorage =>
+                 setter_from_getter_MultiTokenStorage_token_total_supply
+                   (fun _ : TokenTotalSupply => t0)
+                   (setter_from_getter_MultiTokenStorage_ledger
+                      (fun _ : Ledger =>
+                       mint_update_balances (a :: txs)
+                         (ledger (fa2_assets prev_state)))
+                      (fa2_assets prev_state))) prev_state))) =
+     Some new_supply ->
+     
+exists supply t, FMap.find fa2_token_id
+     (token_total_supply
+        (fa2_assets
+           (setter_from_getter_MultiAssetStorage_fa2_assets
+              (fun _ : MultiTokenStorage =>
+               setter_from_getter_MultiTokenStorage_token_total_supply
+                 (fun _ : TokenTotalSupply => t)
+                 (setter_from_getter_MultiTokenStorage_ledger
+                    (fun _ : Ledger =>
+                     mint_update_balances (txs)
+                       (ledger (fa2_assets prev_state)))
+                    (fa2_assets prev_state))) prev_state))) =
+   Some supply.
+Proof. Admitted.
+
+
 Lemma empty_mint_preserves_metadata {prev_state next_state chain ctx acts} :
     fa2_receive chain ctx prev_state (Some (Tokens (MintTokens []))) = Some (next_state, acts) ->
     prev_state.(fa2_assets).(token_metadata) = next_state.(fa2_assets).(token_metadata).
 Proof.
     intros. contract_simpl fa2_receive fa2_init. easy.
 Qed.
-
-
-
+    
 Lemma mint_correct {prev_state next_state chain ctx acts fa2_token_id txs old_supply new_supply} :
     fa2_receive chain ctx prev_state (Some (Tokens (MintTokens txs))) = Some (next_state, acts) ->
     FMap.find fa2_token_id prev_state.(fa2_assets).(token_total_supply) = Some old_supply ->
     FMap.find fa2_token_id next_state.(fa2_assets).(token_total_supply) = Some new_supply ->
-    let delta_supply := sumZ (fun (txs : MintBurnTx) => Z.of_N txs.(mint_burn_amount)) (filter (fun tx => tx.(mint_burn_token_id) =? fa2_token_id) txs) in
-    Z.of_N new_supply = ((Z.of_N old_supply) + delta_supply)%Z.
+    let delta_supply := sumN (fun (txs : MintBurnTx) => txs.(mint_burn_amount)) (filter (fun tx => tx.(mint_burn_token_id) =? fa2_token_id) txs) in
+    new_supply = old_supply + delta_supply.
 Proof.
-    intros.
+    intros. contract_simpl fa2_receive fa2_init. generalize dependent t0. generalize dependent new_supply. induction txs.
+    - intros. cbn in *. inversion H3. now assert (old_supply = new_supply).
+    - intros. destruct (mint_burn_token_id a =? fa2_token_id) eqn:E.
+        -- cbn in delta_supply. destruct (mint_burn_token_id a =? fa2_token_id) eqn:E2 in delta_supply.
+            --- apply mint_app_is_some in H3. inversion H3.
+                apply mint_app_is_some_supply in H1. inversion H1. inversion H4. apply IHtxs in H5; try easy.
+            ---- admit.
+            ----
+             
+            
+            
+            
+            apply IHtxs in H; try easy. admit. admit. 
+            --- easy.
+        -- cbn in delta_supply. destruct (FMap.find (mint_burn_token_id a) (token_total_supply (fa2_assets prev_state))) eqn:E2;
+        destruct (mint_burn_token_id a =? fa2_token_id) eqn:E3 in delta_supply; try easy.
+            --- unfold mint_update_total_supply in H3. apply mint_app_is_some in H3. inversion H3. apply IHtxs in H1; try easy.
+            admit. 
+            --- cbn in *. setoid_rewrite E2 in H3. rewrite update_none_is_none in H3. easy.  
+
+
+
+
+
+
+    (*
+        - intros. apply (update_one_correct a txs prev_state fa2_token_id old_supply new_supply delta_supply t0) in H3; try easy.
+    destruct (mint_burn_token_id a =? fa2_token_id) eqn:E.
+    -- cbn in H3. setoid_rewrite E in H3. assert (sumN (fun txs : MintBurnTx => mint_burn_amount txs)
+        (a :: filter (fun tx : MintBurnTx => mint_burn_token_id tx =? fa2_token_id) txs) = 
+        sumN (fun txs : MintBurnTx => mint_burn_amount txs)
+        (a :: filter (fun tx : MintBurnTx => mint_burn_token_id tx =? fa2_token_id) txs)). easy. apply H3 in H. unfold delta_supply. cbn. rewrite E. apply H.
+    -- cbn in H3. setoid_rewrite E in H3. assert (sumN (fun txs : MintBurnTx => mint_burn_amount txs)
+    (filter (fun tx : MintBurnTx => mint_burn_token_id tx =? fa2_token_id)
+       txs) =
+  sumN (fun txs : MintBurnTx => mint_burn_amount txs)
+    (filter (fun tx : MintBurnTx => mint_burn_token_id tx =? fa2_token_id)
+       txs)). easy. apply H3 in H. unfold delta_supply. cbn. rewrite E. apply H.
+    *)
+
+Qed.
+
 
     
-    contract_simpl fa2_receive fa2_init.
+    
+
     
     
+
+
     
-    
-    
-    
-    induction txs.
-    - cbn in *. inversion H3. subst. assert(old_supply = new_supply); try easy.
-    - destruct (mint_burn_token_id a =? fa2_token_id) eqn:E.
-        -- admit.
-        -- cbn. setoid_rewrite E. apply IHtxs.
-            ---  
     
         
 
@@ -626,35 +834,6 @@ Proof.
     destruct_address_eq; try easy; now inversion H.
 Qed. 
 *)
-
-Lemma token_deployed_never_created : forall bstate caddr fa2_token_id token_info (trace: ChainTrace empty_state bstate),
-    env_contracts bstate caddr = Some (FA2_contract : WeakContract) ->
-    exists depinfo cstate,
-    contract_state bstate caddr = Some cstate /\
-    deployment_info Setup trace caddr = Some depinfo
-    /\ 
-    (
-        let metadata := {| tm_token_id := fa2_token_id; tm_token_info := token_info |} in
-        NoDup (map tm_token_id depinfo.(deployment_setup).(tokens)) ->
-        In metadata depinfo.(deployment_setup).(tokens) ->
-        FMap.find fa2_token_id cstate.(fa2_assets).(token_metadata) = Some metadata
-    ).
-Proof.
-    intros. contract_induction; try easy.
-    - intros. unfold init in init_some. cbn in *. unfold fa2_init in init_some.
-    inversion init_some. cbn in *. apply FMap.In_elements. induction (tokens setup).
-    -- easy.
-    -- cbn in *. destruct (tm_token_id a =? fa2_token_id) eqn:E. 
-    rewrite N.eqb_eq in E. rewrite E in H2.
-   Admitted.
-
-              
-
-            
-            
-
-
-
                 
 
 Lemma fa2_correct : forall bstate caddr fa2_token_id data (trace: ChainTrace empty_state bstate),
