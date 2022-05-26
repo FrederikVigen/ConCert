@@ -842,7 +842,24 @@ exists cstate depinfo inc_calls,
             FMap.find fa2_token_id cstate.(fa2_assets).(token_metadata) = None ->
             FMap.find fa2_token_id cstate.(fa2_assets).(token_total_supply) = None
         ).
-Proof. Admitted.
+Proof. 
+    contract_induction; try easy.
+    - intros. unfold init in init_some. cbn in *. unfold fa2_init in init_some.
+        cbn in *. inversion init_some; try easy. subst. cbn in *.
+        induction (tokens setup); try easy.
+        cbn in *. destruct (tm_token_id a =? fa2_token_id) eqn: E.
+        + apply N.eqb_eq in E. subst. cbn in *. setoid_rewrite FMap.find_add in H. easy.
+        + apply N.eqb_neq in E. setoid_rewrite FMap.find_add_ne in H; try easy. apply IHl in H; try easy.
+            setoid_rewrite FMap.find_add_ne; try easy.
+    - intros. unfold callFrom in *. unfold receive in receive_some. simpl in *. destruct msg; try easy; destruct m; destruct param.
+        + erewrite <- assets_endpoint_preserves_metadata in H; eauto.
+            apply IH in H. erewrite <- assets_endpoint_preserves_total_supply; eauto. 
+        + erewrite <- assets_endpoint_preserves_metadata in H; eauto.
+            apply IH in H. erewrite <- assets_endpoint_preserves_total_supply; eauto. 
+            + erewrite <- assets_endpoint_preserves_metadata in H; eauto.
+            apply IH in H. erewrite <- assets_endpoint_preserves_total_supply; eauto.
+         
+
 
 Lemma fa2_no_mint_before_token_created : forall bstate caddr fa2_token_id (trace: ChainTrace empty_state bstate),
     env_contracts bstate caddr = Some (FA2_contract : WeakContract) ->
