@@ -31,8 +31,8 @@ Global Instance MultiTokenStorage_serializable : Serializable MultiTokenStorage 
 Derive Serializable MultiTokenStorage_rect<Build_MultiTokenStorage>.
 
 Record MultiAssetStorage :=  {
-        admin : TokenAdminStorage ; 
-        assets : MultiTokenStorage ; 
+        fa2_admin : TokenAdminStorage ; 
+        fa2_assets : MultiTokenStorage ; 
         metadata : ContractMetadata
     }.
 

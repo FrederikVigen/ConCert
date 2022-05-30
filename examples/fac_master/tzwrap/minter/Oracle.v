@@ -56,8 +56,8 @@ Definition token_for_share (ctx : ContractCallContext) (shares : list share_per_
     if total =? 0 then
         Some ledger
     else
-        let apply : share_per_address -> (N * TokenLedger) -> (N * TokenLedger) :=
-            (fun (share : share_per_address) (acc : (N * TokenLedger)) =>
+        let apply :  (N * TokenLedger) -> share_per_address -> (N * TokenLedger) :=
+            (fun (acc : (N * TokenLedger)) (share : share_per_address) =>
                 let (distributed, distribution) := acc in
                 let (receiver_address, percent) := share in
                 let token_fees := token_share total percent in
@@ -65,17 +65,17 @@ Definition token_for_share (ctx : ContractCallContext) (shares : list share_per_
                 (distributed +  token_fees, updated_ledger)
             ) in
         
-        let (distributed, new_distribution) := fold_right apply (0, ledger) shares in
+        let (distributed, new_distribution) := fold_left apply shares (0, ledger) in
         do v <- sub total distributed ;
         Some (FMap.update (ctx.(ctx_contract_address), token_address) (Some v) new_distribution).
         
 Definition tokens_for_share (ctx : ContractCallContext) (s : list share_per_address) (tokens : list TokenAddress) (ledger : TokenLedger) : option TokenLedger :=
-    fold_right
-        (fun (t : TokenAddress) (l_opt : option TokenLedger)  => 
+    fold_left
+        (fun (l_opt : option TokenLedger) (t : TokenAddress)  => 
             do l <- l_opt ;
             token_for_share ctx s t l)
-        (Some ledger)
-        tokens.
+        tokens
+        (Some ledger).
 
 Definition key_or_registered_address (ctx : ContractCallContext) (k : N) (s : FMap N Address) : Address :=
     match FMap.find k s with
@@ -86,12 +86,12 @@ Definition key_or_registered_address (ctx : ContractCallContext) (k : N) (s : FM
 Definition shares (ctx : ContractCallContext) (p : list N) (signers_in : FMap N Address) (governance : GovernanceStorage) : list share_per_address :=
     let signers_count := N.of_nat (length p) in
     let other_shares := [(governance.(dev_pool_address), governance.(fees_share_rec).(dev_pool)); (governance.(staking_address), governance.(fees_share_rec).(staking))] in
-    fold_right 
-        ( fun (k : N) (acc : list share_per_address) =>
+    fold_left 
+        ( fun (acc : list share_per_address) (k : N) =>
             (key_or_registered_address ctx k signers_in, governance.(fees_share_rec).(signers) / signers_count) :: acc
         )
-        other_shares
-        p.
+        p
+        other_shares.
 
 Definition distribute_tokens (ctx : ContractCallContext) (p : DistributeParam ) (s : State) : option FeesStorage := 
     let fees_storage := s.(fees) in
@@ -109,16 +109,16 @@ Definition distribute_xtz (ctx : ContractCallContext) (p : list N) (s : State) :
         let governance := s.(governance) in
         let shares := shares ctx p fees_storage.(fees_storage_signers) governance in
 
-        let apply : share_per_address -> (N * XTZLedger) -> (N * XTZLedger) :=
+        let apply : (N * XTZLedger) -> share_per_address -> (N * XTZLedger) :=
             (
-                fun (share : share_per_address) (acc : (N * XTZLedger))  =>
+                fun (acc : (N * XTZLedger)) (share : share_per_address)  =>
                     let (distributed, distribution) := acc in
                     let (receiver_address, percent) := share in
                     let tez_fees := tez_share total percent in
                     let new_ledger := inc_xtz_balance distribution receiver_address tez_fees in
                     (distributed + tez_fees, new_ledger)
             ) in
-        let (distributed, new_distribution) := fold_right apply (0, fees_storage.(fees_storage_xtz)) shares in
+        let (distributed, new_distribution) := fold_left apply shares (0, fees_storage.(fees_storage_xtz)) in
         let remaining := total - distributed in
         let new_distribution := FMap.update ctx.(ctx_contract_address) (Some remaining) new_distribution in
         fees_storage<| fees_storage_xtz := new_distribution |>.

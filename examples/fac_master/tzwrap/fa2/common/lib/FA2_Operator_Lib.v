@@ -29,12 +29,12 @@ Definition validate_update_operators_by_owner (update : update_operator_own) (up
 
 Definition fa2_update_operators (ctx : ContractCallContext) (updates : list update_operator_own) (storage : OperatorStorage) : option OperatorStorage :=
     let updater := ctx.(ctx_from) in
-    let process_update := fun (update : update_operator_own) (ops_opt : option OperatorStorage) =>
+    let process_update := fun (ops_opt : option OperatorStorage) (update : update_operator_own) =>
         do ops <- ops_opt ;
         do _ <- validate_update_operators_by_owner update updater ;
         Some (update_operators update ops)
     in
-    fold_right process_update (Some storage) updates.
+    fold_left process_update updates (Some storage).
 
 Definition OperatorValidator := Address -> Address -> token_id -> OperatorStorage -> option unit.
 
@@ -58,13 +58,13 @@ Definition default_operator_validator : OperatorValidator :=
 
 Definition validate_operator (ctx: ContractCallContext) (tx_policy: OperatorTransferPolicy) (transfers: list Transfer) (ops_storage : OperatorStorage)  : option unit :=
     do validator <- make_operator_validator tx_policy ;
-    fold_right (fun (tx: Transfer) (acc_opt : option unit) => 
+    fold_left (fun (acc_opt : option unit) (tx: Transfer) => 
         do _ <- acc_opt ;
-        fold_right (fun (dst : TransferDestination) (acc_opt_inner : option unit) =>
+        fold_left (fun (acc_opt_inner : option unit) (dst : TransferDestination) =>
             do _ <- acc_opt_inner ;
             do _ <- validator tx.(from_) ctx.(ctx_from) dst.(dst_token_id) ops_storage ;
             Some tt 
-        ) (Some tt) tx.(txs)
-    ) (Some tt) transfers.
+        ) tx.(txs) (Some tt)
+    ) transfers (Some tt).
 
 End FA2_Operator_Lib.

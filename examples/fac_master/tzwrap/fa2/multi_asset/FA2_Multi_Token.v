@@ -43,20 +43,20 @@ Definition dec_balance (owner: Address) (token_id : token_id) (amt : N) (ledger 
     else FMap.update key (Some new_bal) ledger).
 
 Definition transfer (ctx : ContractCallContext) (transfers : list Transfer) (validate_op : OperatorValidator) (storage : MultiTokenStorage) : option Ledger :=
-  let make_transfer := fun (tx : Transfer) (l_opt : option Ledger) =>
+  let make_transfer := fun (l_opt : option Ledger) (tx : Transfer) =>
     do l <- l_opt ;
-    fold_right (fun (dst : TransferDestination) (ll_opt : option Ledger) =>
+    fold_left (fun (ll_opt : option Ledger) (dst : TransferDestination) =>
       do ll <- ll_opt ;
       do _ <- FMap.find dst.(dst_token_id) storage.(token_metadata) ;
       do _ <- validate_op tx.(from_) ctx.(ctx_from) dst.(dst_token_id) storage.(operators) ;
       do lll <- dec_balance tx.(from_) dst.(dst_token_id) dst.(amount) ll ;
       Some (inc_balance dst.(to_) dst.(dst_token_id) dst.(amount) lll)
-    ) (Some l) tx.(txs)
+    ) tx.(txs) (Some l)
   in
-  fold_right make_transfer (Some storage.(ledger)) transfers.
+  fold_left make_transfer transfers (Some storage.(ledger)).
 
 Definition get_balance (p : balance_of_param) (ledger : Ledger) (tokens : TokenMetaDataStorage) : option ActionBody :=
-  let to_balance := fun (r : balance_of_request) (acc_opt : option (list balance_of_response)) =>
+  let to_balance := fun (acc_opt : option (list balance_of_response)) (r : balance_of_request) =>
     do acc <- acc_opt ;
     do _ <- FMap.find r.(bal_req_token_id) tokens ;
     let key := (r.(owner), r.(bal_req_token_id)) in
@@ -64,7 +64,7 @@ Definition get_balance (p : balance_of_param) (ledger : Ledger) (tokens : TokenM
     let response := {|request := r; balance := bal|} in
     Some (response :: acc)
   in
-  let responses_opt := fold_right to_balance (Some []) p.(bal_requests) in
+  let responses_opt := fold_left to_balance p.(bal_requests) (Some []) in
   do responses <- responses_opt ;
   Some (act_call p.(bal_callback) 0 (serialize responses)).
 
