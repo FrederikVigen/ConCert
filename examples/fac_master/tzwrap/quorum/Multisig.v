@@ -294,14 +294,29 @@ Proof.
     intros. cbn. destruct (N.of_nat (Datatypes.length (FMap.elements signerMap)) <? t) eqn: length. 
     - easy. 
     - apply N.ltb_ge in length. easy.
+Qed. 
+
+Lemma length_plus_1 {A : Type} {l : list A} {a : A} :
+    N.of_nat (length (a :: l)) = 1 + N.of_nat(length l).
+Proof.
+    induction l; cbn; easy.
 Qed.
 
-Lemma check_signature_aux {sigs} :
+Lemma check_signature_aux {sigs n} :
+    fold_left 
+    (fun (acc : N) (elem : SignerId * N) => let (_, _) := elem in acc + 1) 
+        sigs n = N.of_nat (length sigs) + n.
+Proof.
+    generalize dependent n. induction sigs; try easy. rewrite length_plus_1.
+    cbn. intros. rewrite IHsigs. destruct a. easy.
+Qed.
+
+Lemma check_signature_aux_0 {sigs} :
     fold_left 
     (fun (acc : N) (elem : SignerId * N) => let (_, _) := elem in acc + 1) 
         sigs 0 = N.of_nat (length sigs).
 Proof.
-    induction sigs; try easy. cbn. rewrite IHsigs. easy.
+    intros. rewrite check_signature_aux; easy.
 Qed.
 
 Lemma check_signature_is_correct {p sigs threshold signers} :
@@ -309,7 +324,7 @@ Lemma check_signature_is_correct {p sigs threshold signers} :
     sigs <> [] /\ threshold <= N.of_nat (length sigs) -> 
     check_signature p sigs threshold signers = Some tt.
 Proof. 
-    intros. unfold check_signature. cbn. rewrite check_signature_aux. unfold throwIf.
+    intros. unfold check_signature. cbn. rewrite check_signature_aux_0. unfold throwIf.
         induction sigs; try easy.
         destruct (N.of_nat (Datatypes.length (a :: sigs)) <? threshold) eqn:E.
         - apply N.ltb_lt in E. cbn in H. inversion H. cbn in E. easy.
@@ -382,7 +397,7 @@ Lemma apply_minter_fails_if_below_threshold {chain ctx prev_state signer_action 
     multisig_receive chain ctx prev_state (Some (Minter signer_action)) = None.
 Proof.
     intros. contract_simpl multisig_receive multisig_init. destruct (check_threshold (signatures signer_action) (threshold prev_state)); try easy.
-    unfold check_signature. cbn. rewrite H. rewrite <- N.ltb_lt in H0. rewrite check_signature_aux. rewrite H0. easy.
+    unfold check_signature. cbn. rewrite H. rewrite <- N.ltb_lt in H0. rewrite check_signature_aux. rewrite N.add_0_r. rewrite H0. easy.
 Qed. 
 
 End MinterProofs.

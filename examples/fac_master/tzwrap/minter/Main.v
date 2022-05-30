@@ -481,7 +481,7 @@ Proof.
 Qed.
 
 (**----------------- Minter FA2 Safety Proofs -----------------**)
-
+(* 
 Definition sum_tx (txs : list MintBurnTx) (id : token_id): Z :=
     fold_left 
     (fun (acc : Z) (tx : MintBurnTx) => 
@@ -584,7 +584,7 @@ Proof.
 
     
     
-    
+     *)
 
 
 End Main. 
