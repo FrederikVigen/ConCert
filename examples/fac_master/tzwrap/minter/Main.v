@@ -103,10 +103,10 @@ Definition minter_receive (chain : Chain) (ctx : ContractCallContext) (state : S
 
 Definition minter_init (chain : Chain) (ctx : ContractCallContext) (setup : Setup) : option State :=
     let meta := FMap.update EmptyString (Some setup.(meta_data_uri)) FMap.empty in
-    let fungible_tokens := fold_right (
-        fun (eth_contract : EthAddress) (acc : (N * FMap EthAddress TokenAddress)) =>
+    let fungible_tokens := fold_left (
+        fun (acc : (N * FMap EthAddress TokenAddress)) (eth_contract : EthAddress) =>
         ((fst acc) + 1, FMap.update eth_contract (Some (setup.(fa2_contract), fst acc)) (snd acc))
-    ) (0, FMap.empty) setup.(setup_tokens) in
+    ) setup.(setup_tokens) (0, FMap.empty) in
     Some {| 
         admin := {| 
             administrator := ctx.(ctx_from);
@@ -481,17 +481,17 @@ Proof.
 Qed.
 
 (**----------------- Minter FA2 Safety Proofs -----------------**)
-
+(* 
 Definition sum_tx (txs : list MintBurnTx) (id : token_id): Z :=
-    fold_right 
-    (fun (tx : MintBurnTx) (acc : Z) => 
+    fold_left 
+    (fun (acc : Z) (tx : MintBurnTx) => 
         (
             if tx.(mint_burn_token_id) =? id
             then (acc + (Z.of_N tx.(mint_burn_amount)))%Z
             else 0%Z
         )
         )
-    0%Z txs.
+    txs 0%Z.
 
 Definition mint_or_burn (msg : FA2_Multi_Asset.MultiAssetParam) (id : token_id) : Z :=
     match msg with
@@ -544,10 +544,6 @@ Proof.
     contract_induction.
     
 
-
-    
-
-
 Lemma fa2_correct : forall bstate fa2_address (trace : ChainTrace empty_state bstate),
     env_contracts bstate fa2_address = Some (FA2_contract : WeakContract) ->
     exists (state_fa2 : MultiAssetStorage) depinfo_fa2,
@@ -588,7 +584,7 @@ Proof.
 
     
     
-    
+     *)
 
 
 End Main. 
