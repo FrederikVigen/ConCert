@@ -31,6 +31,14 @@ Definition Counter: Type := nat.
 
 Definition Metadata: Type := FMap string N.
 
+Record Setup := 
+    mkSetup {
+    s_admin : Address;
+    s_threshold : N;
+    s_signers : FMap SignerId N;
+    s_metadata : Metadata
+}.
+
 Record State : Type :=
     mkState {admin : Address ;
             pending_admin : option Address ;
@@ -38,6 +46,9 @@ Record State : Type :=
             signers : FMap SignerId N ;
             metadata : Metadata ; 
             counters : FMap SignerId nat}.
+
+Global Instance Setup_serializable : Serializable Setup :=
+    Derive Serializable Setup_rect<mkSetup>.
 
 Global Instance State_serializable : Serializable State :=
     Derive Serializable State_rect<mkState>.
@@ -232,18 +243,83 @@ Definition multisig_receive (chain : Chain) (ctx : ContractCallContext) (state :
     do msg <- msg_opt ;
     main ctx msg state.
 
-Definition multisig_init (chain : Chain) (ctx : ContractCallContext) (setup : (Address * (FMap SignerId N))) : option State :=
-    let (admin_addr, signers) := setup in
-    Some {| admin:=admin_addr;
-            threshold:=5;
-            pending_admin:=None;
-            metadata:=FMap.empty;
-            signers:=signers;
-            counters:=FMap.empty |}.
+Definition multisig_init (chain : Chain) (ctx : ContractCallContext) (setup : Setup) : option State :=
+    if N.of_nat (length (FMap.elements (setup.(s_signers)))) <=? setup.(s_threshold) 
+    then None
+    else 
+        Some {| admin:=setup.(s_admin);
+                threshold:=setup.(s_threshold);
+                pending_admin:=None;
+                metadata:=setup.(s_metadata);
+                signers:=setup.(s_signers);
+                counters:=FMap.empty |}.
 
 (** The multisig contract *)
-Definition multisig_contract : Contract (Address * (FMap SignerId N)) MultisigParameter State :=
+Definition multisig_contract : Contract Setup MultisigParameter State :=
 build_contract multisig_init multisig_receive.
+
+Lemma threshold_always_lower_than_signers : forall bstate caddr (trace : ChainTrace empty_state bstate),
+    reachable bstate ->
+    env_contracts bstate caddr = Some (multisig_contract : WeakContract) ->
+    exists cstate,
+        contract_state bstate caddr = Some cstate /\
+        cstate.(threshold) <= N.of_nat (length (FMap.elements cstate.(signers))).
+Proof.
+    intros * reach_deployed.
+    apply (lift_contract_state_prop multisig_contract); try easy.
+    - cbn.
+      intros.
+      unfold multisig_init in H.
+      destruct (N.of_nat (Datatypes.length (FMap.elements (s_signers setup))) <=? s_threshold setup) eqn:E; try easy.
+      apply N.leb_gt in E.
+      assert (s_threshold setup <= N.of_nat (Datatypes.length (FMap.elements (s_signers setup)))).
+      easy.
+      now inversion H.
+    - intros.
+      contract_simpl multisig_receive multisig_init.
+      unfold main in H0.
+      destruct m.
+      -- destruct (fail_if_amount ctx) in H0; try easy.
+         destruct (admin_action).
+         --- cbn in *.
+             destruct (fail_if_not_admin ctx cstate); try easy.
+             unfold check_new_quorum in H0.
+             destruct params.
+             destruct (N.of_nat (Datatypes.length (FMap.elements g)) <? n) eqn:E; try easy.
+             apply N.ltb_ge in E.
+             destruct (N.of_nat
+             (Datatypes.length
+                (FMap.elements
+                   (fin_maps.map_fold
+                      (fun (_ : SignerId) (elem : N) (acc : FMap N unit) =>
+                       FMap.add elem tt acc) FMap.empty g))) =?
+            N.of_nat (Datatypes.length (FMap.elements g))); try easy.
+            now inversion H0.
+         --- cbn in *. destruct (fail_if_not_admin ctx cstate); try easy.
+            unfold throwIf in H0. 
+            destruct (N.of_nat (Datatypes.length (FMap.elements (signers cstate))) <? n) eqn:E; try easy.
+            destruct (n <? 1); try easy.
+            cbn in *.
+            inversion H0.
+            now apply N.ltb_ge in E.
+        --- cbn in *. destruct (fail_if_not_admin ctx cstate); try easy.
+            now inversion H0.
+        --- cbn in *. destruct (pending_admin cstate); try easy.
+            destruct_address_eq; try easy.
+            now inversion H0.
+    -- cbn in *.
+       destruct (check_threshold (signatures signer_action) (threshold cstate)); try easy.
+       destruct (check_signature (0, ctx_contract_address ctx, action signer_action)
+       (signatures signer_action) (threshold cstate) 
+       (signers cstate)); try easy.
+    -- cbn in *.
+       destruct (fail_if_amount ctx); try easy.
+       destruct (fees_entrypoints); cbn in *; now inversion H0.
+    -- cbn in *.
+       destruct (fail_if_amount ctx); try easy.
+       destruct (FMap.find (pap_signer_id payment_addres_parameter) (signers cstate)); try easy.
+       now inversion H0.
+Qed.
 
 End Multisig.
 
