@@ -258,7 +258,7 @@ Definition multisig_init (chain : Chain) (ctx : ContractCallContext) (setup : Se
 Definition multisig_contract : Contract Setup MultisigParameter State :=
 build_contract multisig_init multisig_receive.
 
-Lemma threshold_always_lower_than_signers : forall bstate caddr (trace : ChainTrace empty_state bstate),
+Lemma threshold_always_lower_than_or_eq_signers : forall bstate caddr (trace : ChainTrace empty_state bstate),
     reachable bstate ->
     env_contracts bstate caddr = Some (multisig_contract : WeakContract) ->
     exists cstate,
