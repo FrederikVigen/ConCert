@@ -276,62 +276,62 @@ Proof.
         assert (s_threshold setup <= N.of_nat (Datatypes.length (FMap.elements (s_signers setup)))).
         easy.
         now inversion H.
-        - 
-            intros.
-            contract_simpl multisig_receive multisig_init.
-            unfold main in H0.
-            destruct m.
-            -- 
-                destruct (fail_if_amount ctx) in H0; try easy.
-                destruct (admin_action).
-                --- 
-                    cbn in *.
-                    destruct (fail_if_not_admin ctx cstate); try easy.
-                    unfold check_new_quorum in H0.
-                    destruct params.
-                    destruct (N.of_nat (Datatypes.length (FMap.elements g)) <? n) eqn:E; try easy.
-                    apply N.ltb_ge in E.
-                    destruct (N.of_nat
-                    (Datatypes.length
-                        (FMap.elements
-                        (fin_maps.map_fold
-                            (fun (_ : SignerId) (elem : N) (acc : FMap N unit) =>
-                            FMap.add elem tt acc) FMap.empty g))) =?
-                    N.of_nat (Datatypes.length (FMap.elements g))); try easy.
-                    now inversion H0.
-                --- 
-                    cbn in *. destruct (fail_if_not_admin ctx cstate); try easy.
-                    unfold throwIf in H0. 
-                    destruct (N.of_nat (Datatypes.length (FMap.elements (signers cstate))) <? n) eqn:E; try easy.
-                    destruct (n <? 1); try easy.
-                    cbn in *.
-                    inversion H0.
-                    now apply N.ltb_ge in E.
-                --- 
-                    cbn in *. 
-                    destruct (fail_if_not_admin ctx cstate); try easy.
-                    now inversion H0.
-                --- 
-                    cbn in *. 
-                    destruct (pending_admin cstate); try easy.
-                    destruct_address_eq; try easy.
-                    now inversion H0.
-            -- 
+    - 
+        intros.
+        contract_simpl multisig_receive multisig_init.
+        unfold main in H0.
+        destruct m.
+        -- 
+            destruct (fail_if_amount ctx) in H0; try easy.
+            destruct (admin_action).
+            --- 
                 cbn in *.
-                destruct (check_threshold (signatures signer_action) (threshold cstate)); try easy.
-                destruct (check_signature (0, ctx_contract_address ctx, action signer_action)
-                (signatures signer_action) (threshold cstate) 
-                (signers cstate)); try easy.
-            -- 
-                cbn in *.
-                destruct (fail_if_amount ctx); try easy.
-                destruct (fees_entrypoints); cbn in *; 
+                destruct (fail_if_not_admin ctx cstate); try easy.
+                unfold check_new_quorum in H0.
+                destruct params.
+                destruct (N.of_nat (Datatypes.length (FMap.elements g)) <? n) eqn:E; try easy.
+                apply N.ltb_ge in E.
+                destruct (N.of_nat
+                (Datatypes.length
+                    (FMap.elements
+                    (fin_maps.map_fold
+                        (fun (_ : SignerId) (elem : N) (acc : FMap N unit) =>
+                        FMap.add elem tt acc) FMap.empty g))) =?
+                N.of_nat (Datatypes.length (FMap.elements g))); try easy.
                 now inversion H0.
-            -- 
+            --- 
+                cbn in *. destruct (fail_if_not_admin ctx cstate); try easy.
+                unfold throwIf in H0. 
+                destruct (N.of_nat (Datatypes.length (FMap.elements (signers cstate))) <? n) eqn:E; try easy.
+                destruct (n <? 1); try easy.
                 cbn in *.
-                destruct (fail_if_amount ctx); try easy.
-                destruct (FMap.find (pap_signer_id payment_addres_parameter) (signers cstate)); try easy.
+                inversion H0.
+                now apply N.ltb_ge in E.
+            --- 
+                cbn in *. 
+                destruct (fail_if_not_admin ctx cstate); try easy.
                 now inversion H0.
+            --- 
+                cbn in *. 
+                destruct (pending_admin cstate); try easy.
+                destruct_address_eq; try easy.
+                now inversion H0.
+        -- 
+            cbn in *.
+            destruct (check_threshold (signatures signer_action) (threshold cstate)); try easy.
+            destruct (check_signature (0, ctx_contract_address ctx, action signer_action)
+            (signatures signer_action) (threshold cstate) 
+            (signers cstate)); try easy.
+        -- 
+            cbn in *.
+            destruct (fail_if_amount ctx); try easy.
+            destruct (fees_entrypoints); cbn in *; 
+            now inversion H0.
+        -- 
+            cbn in *.
+            destruct (fail_if_amount ctx); try easy.
+            destruct (FMap.find (pap_signer_id payment_addres_parameter) (signers cstate)); try easy.
+            now inversion H0.
 Qed.
 
 End Multisig.
