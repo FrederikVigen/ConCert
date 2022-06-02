@@ -39,13 +39,15 @@ Record Setup :=
     s_metadata : Metadata
 }.
 
-Record State : Type :=
-    mkState {admin : Address ;
-            pending_admin : option Address ;
-            threshold : N ;
-            signers : FMap SignerId N ;
-            metadata : Metadata ; 
-            counters : FMap SignerId nat}.
+Record State :=
+    mkState {
+        admin : Address ;
+        pending_admin : option Address ;
+        threshold : N ;
+        signers : FMap SignerId N ;
+        metadata : Metadata ; 
+        counters : FMap SignerId nat
+}.
 
 Global Instance Setup_serializable : Serializable Setup :=
     Derive Serializable Setup_rect<mkSetup>.
@@ -71,7 +73,7 @@ Global Instance ContractInvocation_serializable : Serializable ContractInvocatio
 Global Instance SignerAction_serializable : Serializable SignerAction :=
     Derive Serializable SignerAction_rect<mkSignerAction>.
     
-Inductive AdminAction : Type :=
+Inductive AdminAction :=
 | ChangeQuorum (params : (N * (FMap SignerId N)))
 | ChangeThreshold (n : N)
 | SetAdmin (addr : Address)
@@ -173,7 +175,7 @@ Derive Serializable DistributeTokensParameter_rect<mkDistributeTokensParameter>.
 Global Instance FeesEntrypoints_serializable : Serializable FeesEntrypoints :=
 Derive Serializable FeesEntrypoints_rect<Distribute_tokens_with_quorum, Distribute_xtz_with_quorum>.
 
-Inductive MultisigParameter : Type :=
+Inductive MultisigParameter :=
 | Admin (admin_action : AdminAction)
 | Minter (signer_action : SignerAction)
 | Fees (fees_entrypoints : FeesEntrypoints)
@@ -244,95 +246,16 @@ Definition multisig_receive (chain : Chain) (ctx : ContractCallContext) (state :
     main ctx msg state.
 
 Definition multisig_init (chain : Chain) (ctx : ContractCallContext) (setup : Setup) : option State :=
-    if N.of_nat (length (FMap.elements (setup.(s_signers)))) <=? setup.(s_threshold) 
-    then None
-    else 
-        Some {| admin:=setup.(s_admin);
-                threshold:=setup.(s_threshold);
-                pending_admin:=None;
-                metadata:=setup.(s_metadata);
-                signers:=setup.(s_signers);
-                counters:=FMap.empty |}.
+    Some {| admin:=setup.(s_admin);
+            threshold:=setup.(s_threshold);
+            pending_admin:=None;
+            metadata:=setup.(s_metadata);
+            signers:=setup.(s_signers);
+            counters:=FMap.empty |}.
 
 (** The multisig contract *)
 Definition multisig_contract : Contract Setup MultisigParameter State :=
 build_contract multisig_init multisig_receive.
-
-Lemma threshold_always_lower_than_or_eq_signers : forall bstate caddr (trace : ChainTrace empty_state bstate),
-    reachable bstate ->
-    env_contracts bstate caddr = Some (multisig_contract : WeakContract) ->
-    exists cstate,
-        contract_state bstate caddr = Some cstate /\
-        cstate.(threshold) <= N.of_nat (length (FMap.elements cstate.(signers))).
-Proof.
-    intros * reach_deployed.
-    apply (lift_contract_state_prop multisig_contract); try easy.
-    - 
-        cbn.
-        intros.
-        unfold multisig_init in H.
-        destruct (N.of_nat (Datatypes.length (FMap.elements (s_signers setup))) <=? s_threshold setup) eqn:E; try easy.
-        apply N.leb_gt in E.
-        assert (s_threshold setup <= N.of_nat (Datatypes.length (FMap.elements (s_signers setup)))).
-        easy.
-        now inversion H.
-    - 
-        intros.
-        contract_simpl multisig_receive multisig_init.
-        unfold main in H0.
-        destruct m.
-        -- 
-            destruct (fail_if_amount ctx) in H0; try easy.
-            destruct (admin_action).
-            --- 
-                cbn in *.
-                destruct (fail_if_not_admin ctx cstate); try easy.
-                unfold check_new_quorum in H0.
-                destruct params.
-                destruct (N.of_nat (Datatypes.length (FMap.elements g)) <? n) eqn:E; try easy.
-                apply N.ltb_ge in E.
-                destruct (N.of_nat
-                (Datatypes.length
-                    (FMap.elements
-                    (fin_maps.map_fold
-                        (fun (_ : SignerId) (elem : N) (acc : FMap N unit) =>
-                        FMap.add elem tt acc) FMap.empty g))) =?
-                N.of_nat (Datatypes.length (FMap.elements g))); try easy.
-                now inversion H0.
-            --- 
-                cbn in *. destruct (fail_if_not_admin ctx cstate); try easy.
-                unfold throwIf in H0. 
-                destruct (N.of_nat (Datatypes.length (FMap.elements (signers cstate))) <? n) eqn:E; try easy.
-                destruct (n <? 1); try easy.
-                cbn in *.
-                inversion H0.
-                now apply N.ltb_ge in E.
-            --- 
-                cbn in *. 
-                destruct (fail_if_not_admin ctx cstate); try easy.
-                now inversion H0.
-            --- 
-                cbn in *. 
-                destruct (pending_admin cstate); try easy.
-                destruct_address_eq; try easy.
-                now inversion H0.
-        -- 
-            cbn in *.
-            destruct (check_threshold (signatures signer_action) (threshold cstate)); try easy.
-            destruct (check_signature (0, ctx_contract_address ctx, action signer_action)
-            (signatures signer_action) (threshold cstate) 
-            (signers cstate)); try easy.
-        -- 
-            cbn in *.
-            destruct (fail_if_amount ctx); try easy.
-            destruct (fees_entrypoints); cbn in *; 
-            now inversion H0.
-        -- 
-            cbn in *.
-            destruct (fail_if_amount ctx); try easy.
-            destruct (FMap.find (pap_signer_id payment_addres_parameter) (signers cstate)); try easy.
-            now inversion H0.
-Qed.
 
 End Multisig.
 
@@ -409,7 +332,6 @@ Proof.
 Qed.
 
 Lemma check_signature_is_correct {p sigs threshold signers} :
-    (* 1 <= threshold /\ Threshold is stated to be larger than one in the main *)
     sigs <> [] /\ threshold <= N.of_nat (length sigs) -> 
     check_signature p sigs threshold signers = Some tt.
 Proof. 
@@ -420,6 +342,180 @@ Proof.
         - reflexivity.
 Qed.
 
+Lemma set_admin_preserves_threshold_signers {chain ctx prev_state addr next_state acts} :
+    multisig_receive chain ctx prev_state (Some (Admin (SetAdmin addr))) = Some (next_state, acts) ->
+    prev_state.(threshold) = next_state.(threshold) /\
+    prev_state.(signers) = next_state.(signers).
+Proof.
+    intros. contract_simpl multisig_receive multisig_init.
+    split; try easy.
+Qed.
+
+Lemma confirm_admin_preserves_threshold_signers {chain ctx prev_state next_state acts} :
+    multisig_receive chain ctx prev_state (Some (Admin ConfirmAdmin)) = Some (next_state, acts) ->
+    prev_state.(threshold) = next_state.(threshold) /\
+    prev_state.(signers) = next_state.(signers).
+Proof.
+    intros. contract_simpl multisig_receive multisig_init.
+    split; try easy.
+Qed.
+
+Lemma set_signer_payment_address_preserves_threshold_signers {chain ctx prev_state next_state acts param} :
+multisig_receive chain ctx prev_state (Some (Set_signer_payment_address param)) = Some (next_state, acts) ->
+    prev_state.(threshold) = next_state.(threshold) /\
+    prev_state.(signers) = next_state.(signers).
+Proof.
+    intros. contract_simpl multisig_receive multisig_init.
+    split; try easy.
+Qed.
+
+Lemma fees_preserves_state {chain ctx prev_state next_state acts entrypoint} :
+    multisig_receive chain ctx prev_state (Some (Fees entrypoint)) = Some (next_state, acts) -> 
+    prev_state = next_state.
+Proof.
+    intros. destruct entrypoint; contract_simpl multisig_receive multisig_init.
+Qed.
+
+Lemma apply_minter_preserves_state {chain ctx prev_state next_state signer_action acts} :
+    multisig_receive chain ctx prev_state (Some (Minter signer_action)) =
+    Some (next_state, acts) ->
+    prev_state = next_state.
+Proof.
+    intros. contract_simpl multisig_receive multisig_init.
+Qed.
+
+Lemma threshold_always_lower_than_or_eq_signers : forall bstate caddr (trace : ChainTrace empty_state bstate),
+    reachable bstate ->
+    env_contracts bstate caddr = Some (multisig_contract : WeakContract) ->
+    exists cstate depinfo,
+        contract_state bstate caddr = Some cstate /\
+        deployment_info Setup trace caddr = Some depinfo /\
+        ( depinfo.(deployment_setup).(s_threshold) <=  N.of_nat (length (FMap.elements depinfo.(deployment_setup).(s_signers))) ->
+          cstate.(threshold) <= N.of_nat (length (FMap.elements cstate.(signers))) ).
+Proof.
+    intros. contract_induction; try easy.
+    -   (* Deployment *)
+        intros.
+        unfold multisig_init in init_some.
+        now inversion init_some.
+    -   (* Call *)
+        intros.
+        destruct msg; try easy.
+        destruct m.
+        --  destruct admin_action.
+            --- (* ChangeQuorum *)
+                cbn in *.
+                destruct (fail_if_amount ctx); try easy.
+                destruct (fail_if_not_admin ctx prev_state); try easy.
+                unfold check_new_quorum in receive_some.
+                destruct params.
+                destruct (N.of_nat (Datatypes.length (FMap.elements g)) <? n) eqn:E; try easy.
+                apply N.ltb_ge in E.
+                destruct (N.of_nat
+                (Datatypes.length
+                   (FMap.elements
+                      (fin_maps.map_fold
+                         (fun (_ : SignerId) (elem : N) (acc : FMap N unit) => FMap.add elem tt acc)
+                         FMap.empty g))) =? N.of_nat (Datatypes.length (FMap.elements g))); try easy.
+                now inversion receive_some.
+            --- (* ChangeThreshold *)
+                cbn in *.
+                destruct (fail_if_amount ctx); try easy.
+                destruct (fail_if_not_admin ctx prev_state); try easy.
+                destruct (N.of_nat (Datatypes.length (FMap.elements (signers prev_state))) <? n) eqn:E; try easy.
+                destruct (n <? 1); try easy.
+                cbn in *.
+                apply N.ltb_ge in E.
+                now inversion receive_some.
+            --- (* SetAdmin *) 
+                simpl in receive_some.
+                apply set_admin_preserves_threshold_signers in receive_some.
+                inversion receive_some.
+                rewrite <- H0.
+                now rewrite <- H1.
+            --- (* ConfirmAdmin *)
+                simpl in receive_some.
+                apply confirm_admin_preserves_threshold_signers in receive_some.
+                inversion receive_some.
+                rewrite <- H0.
+                now rewrite <- H1.
+        --  (* Minter *)
+            simpl in receive_some.
+            apply apply_minter_preserves_state in receive_some.
+            now rewrite <- receive_some.
+        -- (* Fees *)
+            simpl in receive_some.
+            apply fees_preserves_state in receive_some.
+            now rewrite <- receive_some.
+        -- (* Set_signer_payment_address *)
+            simpl in receive_some.
+            apply set_signer_payment_address_preserves_threshold_signers in receive_some.
+            inversion receive_some.
+            rewrite <- H0.
+            now rewrite <- H1.
+    -   (* Recursive call *)
+        intros.
+        destruct msg; try easy.
+        destruct m.
+        --  destruct admin_action.
+            --- (* ChangeQuorum *)
+                cbn in *.
+                destruct (fail_if_amount ctx); try easy.
+                destruct (fail_if_not_admin ctx prev_state); try easy.
+                unfold check_new_quorum in receive_some.
+                destruct params.
+                destruct (N.of_nat (Datatypes.length (FMap.elements g)) <? n) eqn:E; try easy.
+                apply N.ltb_ge in E.
+                destruct (N.of_nat
+                (Datatypes.length
+                (FMap.elements
+                    (fin_maps.map_fold
+                        (fun (_ : SignerId) (elem : N) (acc : FMap N unit) => FMap.add elem tt acc)
+                        FMap.empty g))) =? N.of_nat (Datatypes.length (FMap.elements g))); try easy.
+                now inversion receive_some.
+            --- (* ChangeThreshold *)
+                cbn in *.
+                destruct (fail_if_amount ctx); try easy.
+                destruct (fail_if_not_admin ctx prev_state); try easy.
+                destruct (N.of_nat (Datatypes.length (FMap.elements (signers prev_state))) <? n) eqn:E; try easy.
+                destruct (n <? 1); try easy.
+                cbn in *.
+                apply N.ltb_ge in E.
+                now inversion receive_some.
+            --- (* SetAdmin *) 
+                simpl in receive_some.
+                apply set_admin_preserves_threshold_signers in receive_some.
+                inversion receive_some.
+                rewrite <- H0.
+                now rewrite <- H1.
+            --- (* ConfirmAdmin *)
+                simpl in receive_some.
+                apply confirm_admin_preserves_threshold_signers in receive_some.
+                inversion receive_some.
+                rewrite <- H0.
+                now rewrite <- H1.
+        --  (* Minter *)
+            simpl in receive_some.
+            apply apply_minter_preserves_state in receive_some.
+            now rewrite <- receive_some.
+        -- (* Fees *)
+            simpl in receive_some.
+            apply fees_preserves_state in receive_some.
+            now rewrite <- receive_some.
+        -- (* Set_signer_payment_address *)
+            simpl in receive_some.
+            apply set_signer_payment_address_preserves_threshold_signers in receive_some.
+            inversion receive_some.
+            rewrite <- H0.
+            now rewrite <- H1.
+    -   (* Facts *)
+        instantiate (AddBlockFacts := fun _ _ _ _ _ _ => True).
+        instantiate (DeployFacts := fun _ _ => True).
+        instantiate (CallFacts := fun _ _ _ _ => True).
+        unset_all; subst;cbn in *.
+        destruct step; try easy.
+        destruct a; try easy.
+Qed.
 End SafetyProofs.
 
 Section AdminProofs.
@@ -427,12 +523,9 @@ Context {BaseTypes : ChainBase}.
 
 Lemma change_quorum_functionally_correct {chain ctx prev_state t new_signers next_state} :
     multisig_receive chain ctx prev_state (Some (Admin (ChangeQuorum  (t, new_signers)))) = Some (next_state, []) ->
-    (
-    t <= N.of_nat (length (FMap.elements new_signers))
-    /\
-    next_state.(threshold) = t
-    /\
-    next_state.(signers) = new_signers
+    ( t <= N.of_nat (length (FMap.elements new_signers)) /\
+      next_state.(threshold) = t /\
+      next_state.(signers) = new_signers
     ).
 Proof.
     intros. contract_simpl multisig_receive multisig_init. split. 
@@ -440,7 +533,7 @@ Proof.
     - split; try easy.  
 Qed.
 
-Lemma change_thresgold_functionally_correct {chain ctx prev_state t next_state} :
+Lemma change_threshold_functionally_correct {chain ctx prev_state t next_state} :
     multisig_receive chain ctx prev_state (Some (Admin (ChangeThreshold  t))) = Some (next_state, []) ->
     next_state.(threshold) = t.
 Proof.
@@ -454,11 +547,16 @@ Proof.
     intros. contract_simpl multisig_receive multisig_init. easy.   
 Qed.
 
-Lemma confirm_admin_correct {ctx chain state state'} :
-    multisig_receive chain ctx state (Some (Admin ConfirmAdmin)) = Some (state', []) ->
-    state'.(pending_admin) = None /\ state'.(admin) = ctx.(ctx_from).
+Lemma confirm_admin_correct {ctx chain prev_state next_state} :
+    multisig_receive chain ctx prev_state (Some (Admin ConfirmAdmin)) = Some (next_state, []) ->
+    next_state.(pending_admin) = None /\ 
+    next_state.(admin) = ctx.(ctx_from) /\
+    prev_state.(pending_admin) = Some (next_state.(admin)).
 Proof.
-    intros. contract_simpl multisig_receive multisig_init. easy.
+    intros. contract_simpl multisig_receive multisig_init. 
+    split; try easy; split; auto. 
+    destruct (address_eqb_spec a (ctx_from ctx)) in H2; try easy.
+    now f_equal.
 Qed.
 
 End AdminProofs.
@@ -472,10 +570,7 @@ Lemma apply_minter_functionally_correct {chain ctx prev_state next_state signer_
     Some (next_state, acts) ->
     (* Creating correct contract call *)
     let action := signer_action.(action) in
-    acts = [act_call action.(target) ctx.(ctx_amount) (serialize action.(entrypoint))]
-    /\
-    (* State should not have been changed *)
-    next_state = prev_state.
+    acts = [act_call action.(target) ctx.(ctx_amount) (serialize action.(entrypoint))].
 Proof.
     intros. contract_simpl multisig_receive multisig_init. easy.
 Qed.
@@ -499,27 +594,21 @@ Lemma fees_functionally_correct {chain ctx prev_state next_state acts entrypoint
     multisig_receive chain ctx prev_state (Some (Fees entrypoint)) = Some (next_state, acts) ->
     match entrypoint with
     | Distribute_tokens_with_quorum param => 
-        (* State not changed *)
-        prev_state = next_state /\
         (* Call should be to minter contract and 0 amount *)
-        exists msg, acts = [(act_call param.(dtp_minter_contract) 0 msg)]
+        let msg := serialize (Distribute_tokens {|dp_signers := signers_key_hash prev_state; dp_tokens := param.(dtp_tokens)|}) in
+        acts = [(act_call param.(dtp_minter_contract) 0 msg)]
     | Distribute_xtz_with_quorum addr => 
-        (* State not changed *)
-        prev_state = next_state /\
         (* Call should be to correct target and 0 amount *)
-        exists msg, acts = [(act_call addr 0 msg)]
+        let msg := serialize (Distribute_xtz (signers_key_hash prev_state)) in
+        acts = [(act_call addr 0 msg)]
     end.
 Proof.
     (* We assume that the messages of the calls are correct by inspecting the code *)
-    intros. contract_simpl multisig_receive multisig_init. unfold fees_main in H. destruct entrypoint; try easy.
-    - split; try easy. exists (serialize
-    (Distribute_tokens
-       {|
-       dp_signers := signers_key_hash prev_state;
-       dp_tokens := dtp_tokens param |})).
-       easy.
-    - split; try easy. exists (serialize (Distribute_xtz (signers_key_hash prev_state))). easy.
+    intros. contract_simpl multisig_receive multisig_init. 
+    unfold fees_main in H. 
+    destruct entrypoint; try easy.
 Qed.  
+
 End FeesProofs.
 
 Section SetSignerPaymentAddressProofs.
