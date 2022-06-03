@@ -142,7 +142,7 @@ Definition minter_init (chain : Chain) (ctx : ContractCallContext) (setup : Setu
         storage_metadata := meta
     |}.
 
-(** The minter contract *)
+(* The minter contract *)
 Definition minter_contract : Contract Setup EntryPoints State :=
     build_contract minter_init minter_receive.
 
@@ -160,32 +160,48 @@ Lemma mint_erc20_functionally_correct {chain ctx prev_state next_state erc20Addr
     FMap.find erc20Address prev_state.(assets).(erc20tokens) = Some token_address ->
     FMap.find (ctx.(ctx_contract_address), token_address) prev_state.(fees).(fees_storage_tokens) = Some v ->
     FMap.find (ctx.(ctx_contract_address), token_address) next_state.(fees).(fees_storage_tokens) = Some new_v ->
-    feesVal = (amount * n /10000) ->
+    feesVal = (amount * n / 10000) ->
     v + feesVal = new_v /\
-    (*Amount to mint to owner*)
-    let mintBurnToOwner := {|
+    (* Amount to mint to owner *)
+    let mintToOwner := {|
         mint_burn_owner := owner;
         mint_burn_token_id := snd token_address;
         mint_burn_amount := amount - feesVal
     |} in
-    (*Fees to mint to contract itself*)
-    let mintBurnFees := {|
+    (* Fees to mint to contract itself *)
+    let mintFees := {|
         mint_burn_owner := ctx.(ctx_contract_address);
         mint_burn_token_id := snd token_address;
         mint_burn_amount := feesVal
     |} in
-    (*If no fees to mint, dont include it in the actions*)
+    (* If no fees to mint, dont include it in the actions *)
     if 0 <?  feesVal then
       acts = [act_call (fst token_address) 0 (serialize (MintTokens [mintBurnToOwner ; mintBurnFees]))]
     else 
      acts = [act_call (fst token_address) 0 (serialize (MintTokens [mintBurnToOwner]))].
 Proof.
-    intros. generalize dependent H4. contract_simpl minter_receive minter_init. intro. cbn in *. split.
-    - unfold get_fa2_token_id in H9. setoid_rewrite H9 in H1. inversion H1. subst. unfold Fees_Lib.token_balance in H2.
-        setoid_rewrite FMap.find_add in H3. unfold Fees_Lib.token_balance in H3.
-        setoid_rewrite H2 in H3. cbn in *. unfold Fees_Lib.bps_of in H3. inversion H3. easy.
-    - unfold get_fa2_token_id in H9. setoid_rewrite H9 in H1. inversion H1. destruct feesVal;
-        unfold bps_of in *; rewrite <- H8; cbn; easy.
+    intros. 
+    generalize dependent H4. 
+    contract_simpl minter_receive minter_init. 
+    intro. cbn in *. 
+    split.
+    -   unfold get_fa2_token_id in H9. 
+        setoid_rewrite H9 in H1. 
+        inversion H1. 
+        subst. 
+        unfold Fees_Lib.token_balance in H2.
+        setoid_rewrite FMap.find_add in H3. 
+        unfold Fees_Lib.token_balance in H3.
+        setoid_rewrite H2 in H3. 
+        cbn in *. 
+        unfold Fees_Lib.bps_of in H3. 
+        now inversion H3.
+    -   unfold get_fa2_token_id in H9. 
+        setoid_rewrite H9 in H1. 
+        inversion H1. 
+        destruct feesVal;
+        unfold bps_of in *; 
+        rewrite <- H8; now cbn.
 Qed.
 
 Lemma add_erc20_functionally_correct {chain ctx prev_state next_state eth_contract token_address acts ta} : 
