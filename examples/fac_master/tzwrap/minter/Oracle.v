@@ -100,6 +100,13 @@ Definition distribute_tokens (ctx : ContractCallContext) (p : DistributeParam ) 
     do new_ledger <- tokens_for_share ctx shares' p.(dp_tokens) fees_storage.(fees_storage_tokens) ;
     Some (fees_storage<| fees_storage_tokens := new_ledger |>).
 
+Definition apply_distribute_xtz (total : N) (acc: N * XTZLedger) (share : share_per_address) : (N * XTZLedger) :=
+    let (distributed, distribution) := acc in
+    let (receiver_address, percent) := share in
+    let tez_fees := tez_share total percent in
+    let new_ledger := inc_xtz_balance distribution receiver_address tez_fees in
+    (distributed + tez_fees, new_ledger).
+
 Definition distribute_xtz (ctx : ContractCallContext) (p : list N) (s : State) : FeesStorage :=
     let fees_storage := s.(fees) in
     let total := xtz_balance fees_storage.(fees_storage_xtz) ctx.(ctx_contract_address) in
@@ -108,17 +115,7 @@ Definition distribute_xtz (ctx : ContractCallContext) (p : list N) (s : State) :
     else
         let governance := s.(governance) in
         let shares := shares ctx p fees_storage.(fees_storage_signers) governance in
-
-        let apply : (N * XTZLedger) -> share_per_address -> (N * XTZLedger) :=
-            (
-                fun (acc : (N * XTZLedger)) (share : share_per_address)  =>
-                    let (distributed, distribution) := acc in
-                    let (receiver_address, percent) := share in
-                    let tez_fees := tez_share total percent in
-                    let new_ledger := inc_xtz_balance distribution receiver_address tez_fees in
-                    (distributed + tez_fees, new_ledger)
-            ) in
-        let (distributed, new_distribution) := fold_left apply shares (0, fees_storage.(fees_storage_xtz)) in
+        let (distributed, new_distribution) := fold_left (apply_distribute_xtz total) shares (0, fees_storage.(fees_storage_xtz)) in
         let remaining := total - distributed in
         let new_distribution := FMap.update ctx.(ctx_contract_address) (Some remaining) new_distribution in
         fees_storage<| fees_storage_xtz := new_distribution |>.

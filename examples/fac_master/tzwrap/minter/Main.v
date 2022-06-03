@@ -32,6 +32,7 @@ Import ListNotations.
 Require Import Fees_Lib.
 Require Import TokenAdmin.
 Require Import FA2Types.
+Require Import Lia.
 
 Section Main.
 
@@ -471,99 +472,131 @@ Qed.
 
 (**----------------- Oracle Proofs -----------------**)
 
-Lemma shares_fold_only_adds {l l' signers_in ctx signers_count governance e} :
-    In e l ->
-    In e (fold_right (fun (k : N) (acc : list share_per_address) =>
-        (key_or_registered_address ctx k signers_in, governance.(fees_share_rec).(signers) / signers_count) :: acc
-    ) l l').
+Lemma adding_new_0_doesnot_change_sum {K} `{countable.Countable K} {m : FMap K N} {x : K} :
+    FMap.find x m = None ->    
+    sumN id (FMap.values m) = 
+    sumN id (FMap.values (FMap.add x 0 m)).
 Proof.
-    intros. induction l'; cbn in *; easy.
-Qed. 
-
-Lemma in_intro {A} : forall (e1 e2: A) (l: list A),
-    l = [e1;e2] ->
-    In e1 l /\ In e2 l.
-Proof.
-    intros. split; rewrite H; unfold In; easy.
+    intros. unfold FMap.values. rewrite FMap.elements_add; try easy.
 Qed.
 
-Lemma shares_fold_only_adds2 {l l' signers_in ctx signers_count governance} :
-    exists l'',
-    (fold_right (fun (k : N) (acc : list share_per_address) =>
-        (key_or_registered_address ctx k signers_in, governance.(fees_share_rec).(signers) / signers_count) :: acc
-    ) l l') = l'' ++ l.
-Proof.
-    intros. induction l'; intros.
-    - cbn in *. exists []. rewrite app_nil_l. easy.
-    - cbn in *. inversion IHl'. rewrite H. exists ((key_or_registered_address ctx a signers_in,
-    signers (fees_share_rec governance) / signers_count) :: 
-    x). easy.
-Qed. 
+Definition sum_xtz_fees (state : State) := 
+    sumN id (FMap.values state.(fees).(fees_storage_xtz)).
 
-Lemma shares_fold_only_adds3 {l l' signers_in ctx signers_count governance} :
-    (fold_right (fun (k : N) (acc : list share_per_address) =>
-        (key_or_registered_address ctx k signers_in, governance.(fees_share_rec).(signers) / signers_count) :: acc
-    ) l l') = (fold_right (fun (k : N) (acc : list share_per_address) =>
-    (key_or_registered_address ctx k signers_in, governance.(fees_share_rec).(signers) / signers_count) :: acc
-    ) [] l') ++ l.
+Lemma sum_is_same_as_remove_and_addition {K} `{countable.Countable K} {m : FMap K N} {x v old_val} :
+    FMap.find x m = Some old_val ->
+    sumN id (FMap.values (FMap.add x v m)) = v + sumN id (FMap.values (FMap.remove x m)).
 Proof.
-    intros. induction l'.
-    - cbn in *. easy.
-    - cbn in *. rewrite IHl'. easy.
-Qed.  
-
-Lemma two_elements_is_two_lists {A} : forall (e1 e2: A),
-    [e1;e2] = [e1] ++ [e2].
-Proof.
-    intros. easy.
+    intros. unfold FMap.values. rewrite FMap.elements_add_existing; try easy.
 Qed.
 
-Lemma not_or_is_and {p1 p2} :
-    ~ (p1 \/ p2) -> ~p1 /\ ~p2.
+Lemma remove_add_commute {K} `{countable.Countable K} {m : FMap K N} {x x' v} :
+    x <> x' ->
+    FMap.remove x (FMap.add x' v m) = FMap.add x' v (FMap.remove x m).
 Proof.
-    intros. easy. 
+    intros. now apply fin_maps.delete_insert_ne.
 Qed.
 
-(* Lemma shares_does_not_affect_dev_pool_address {l ctx p signers_in governance hash} :
-    shares ctx p signers_in governance = l ->
-    key_or_registered_address ctx hash signers_in <> governance.(dev_pool_address) ->
-    key_or_registered_address ctx hash signers_in <> governance.(staking_address) -> *)
-
-Lemma distribute_xtz_does_not_affect_dev_pool_addres {ctx p state l} :
-    shares ctx p state.(fees).(fees_storage_xtz) state.(governance) = l ->
-    distribute_xtz ctx p state = 
+Lemma adding_subtracting_doesnot_change_sum {K} `{countable.Countable K} {m : FMap K N} {x x' v x_val x'_val} :
+    v <= x_val ->
+    x <> x' ->
+    FMap.find x m = Some x_val ->
+    FMap.find x' m = Some x'_val ->
+    sumN id (FMap.values m) =
+    sumN id (FMap.values (FMap.add x' (x'_val + v) (FMap.add x (x_val - v) m))).
 Proof.
-    intros. unfold distribute_xtz.
-    destruct (xtz_balance (fees_storage_xtz (fees state)) (ctx_contract_address ctx) =? 0); try easy.
-    cbn. setoid_rewrite FMap.find_add_ne.
-    
+    intros. 
+    apply FMap.add_id in H2. rewrite <- H2. setoid_rewrite FMap.add_add.
+    setoid_rewrite FMap.add_commute; try easy. 
+    apply FMap.add_id in H3. rewrite <- H3. setoid_rewrite FMap.add_add.
+    setoid_rewrite sum_is_same_as_remove_and_addition. setoid_rewrite remove_add_commute; try easy. 
+    setoid_rewrite sum_is_same_as_remove_and_addition.
+    - rewrite N.add_assoc. rewrite N.add_assoc. rewrite <- N.add_sub_swap. rewrite N.add_assoc. rewrite N.add_sub; try easy. assumption.
+    - setoid_rewrite FMap.find_remove_ne; try easy. rewrite <- H3. eauto.
+    - setoid_rewrite FMap.find_remove_ne; try easy. rewrite <- H3. eauto.
+    - rewrite H3. rewrite <- H2. eauto.
+    - setoid_rewrite FMap.find_add_ne; try easy. rewrite <- H2. eauto.
+Qed.
 
+Lemma apply_distribute_xtz_app {a l ledger total prev} :
+    let tez_fees := (tez_share (snd a) total) in
+    fold_left (apply_distribute_xtz total) (a :: l) (prev, ledger) =
+    fold_left (apply_distribute_xtz total) l (prev + tez_fees, inc_xtz_balance ledger (fst a) tez_fees).
+Proof.
+    intros. cbn. destruct a. cbn. rewrite N.mul_comm. easy.
+Qed.
 
-Lemma distribute_xtz_functionally_correct {chain ctx prev_state next_state hash_list distFees l'} :
+Lemma apply_distribute_xtz_app_add_0 {a l ledger total} :
+    let tez_fees := (tez_share (snd a) total) in
+    fold_left (apply_distribute_xtz total) (a :: l) (0, ledger) =
+    fold_left (apply_distribute_xtz total) l (tez_fees, inc_xtz_balance ledger (fst a) tez_fees).
+Proof.
+    intros. rewrite apply_distribute_xtz_app. rewrite N.add_0_l. easy.
+Qed.
 
-    shares ctx hash_list prev_state.(fees).(fees_storage_signers) prev_state.(governance) = l' ->
+Lemma apply_distribute_xtz_tple_dist {total l distributed new_ledger} :
+    fold_left (apply_distribute_xtz total) l (distributed, new_ledger) =
+    ((fst (fold_left (apply_distribute_xtz total) l (distributed, new_ledger))), (snd (fold_left (apply_distribute_xtz total) l (distributed, new_ledger)))).
+Proof.
+    generalize dependent distributed. generalize dependent new_ledger. induction l.
+    - easy.
+    - intros. cbn. destruct a. destruct (FMap.find a new_ledger); apply IHl.
+Qed.
+
+Lemma apply_distribute_xtz_fst_is_add {total l distributed new_ledger old_distributed} :
+    (fst (fold_left (apply_distribute_xtz total) l (distributed + old_distributed, new_ledger))) =
+    distributed + (fst (fold_left (apply_distribute_xtz total) l (old_distributed, new_ledger))).
+Proof.
+    generalize dependent distributed. 
+    generalize dependent new_ledger.
+    generalize dependent old_distributed.
+    induction l.
+    - easy.
+    - intros. cbn. destruct a. destruct (FMap.find a new_ledger);
+         rewrite <- N.add_assoc; apply IHl.
+Qed.
+
+Lemma apply_distribute_xtz_snd_is_fmap_add {total l distributed new_ledger a v} :
+    (snd (fold_left (apply_distribute_xtz total) l (distributed, (FMap.add a v new_ledger)))) = 
+    FMap.add a v ((snd (fold_left (apply_distribute_xtz total) l (distributed, new_ledger)))).
+Proof.
+    generalize dependent distributed.
+    generalize dependent new_ledger.
+    induction l.
+    - easy.
+    - intros. cbn. destruct a0. destruct (FMap.find a0 (FMap.add a v new_ledger)) eqn:E.
+        +admit.
+Admitted.
+
+Lemma distribute_xtz_functionally_correct {chain ctx prev_state next_state hash_list} :
     minter_receive chain ctx prev_state (Some (Oracle (Distribute_xtz hash_list))) = Some (next_state, []) ->
-    let fees_sum_of_addresses := 
-        fun (l : list Address) (state : State) => 
-            fold_right (fun (addr: Address) (acc : N) => acc + xtz_balance state.(fees).(fees_storage_xtz) addr) 0 l in
-    xtz_balance prev_state.(fees).(fees_storage_xtz) ctx.(ctx_contract_address) - xtz_balance next_state.(fees).(fees_storage_xtz) ctx.(ctx_contract_address) = distFees ->
-    (fees_sum_of_addresses (map fst l') prev_state) = fees_sum_of_addresses (map fst l') next_state + distFees.
+    sum_xtz_fees prev_state = sum_xtz_fees next_state.
 Proof.
-    intros. contract_simpl minter_receive minter_init. unfold distribute_xtz.
-    destruct (xtz_balance (fees_storage_xtz (fees prev_state)) (ctx_contract_address ctx) =? 0) eqn:E.
-    - apply N.eqb_eq in E. rewrite E. cbn. rewrite N.add_0_r. easy.
-    - cbn. unfold xtz_balance.
-
-
-    - unfold distribute_xtz. cbn. 
-    destruct (xtz_balance (fees_storage_xtz (fees prev_state)) (ctx_contract_address ctx) =? 0) eqn:E.
-        + rewrite N.eqb_eq in E. rewrite E. cbn. easy.
-        + unfold xtz_balance. setoid_rewrite FMap.find_add_ne; try easy. 
-        setoid_rewrite FMap.find_add. setoid_rewrite FMap.find_add_ne; try easy.
-        destruct (FMap.find (dev_pool_address (governance prev_state)) (fees_storage_xtz (fees prev_state))) eqn: E1; setoid_rewrite E1; easy.
-    - apply not_or_is_and in H2. inversion H2. apply IHhash_list in H6. rewrite <- H6. cbn.
-
-Qed.  
+    intros. contract_simpl minter_receive minter_init. unfold sum_xtz_fees. cbn. unfold distribute_xtz.
+    destruct (xtz_balance (fees_storage_xtz (fees prev_state)) (ctx_contract_address ctx) =? 0); try easy.
+    induction (shares ctx hash_list (fees_storage_signers (fees prev_state))
+    (governance prev_state)).
+    - cbn. rewrite N.sub_0_r. unfold xtz_balance. destruct (FMap.find (ctx_contract_address ctx)
+    (fees_storage_xtz (fees prev_state))) eqn:E. 
+        + apply FMap.add_id in E. rewrite E. easy.
+        + apply adding_new_0_doesnot_change_sum in E. rewrite E. easy.
+    - rewrite apply_distribute_xtz_app_add_0. cbn. destruct a. cbn. 
+      destruct (FMap.find a (fees_storage_xtz (fees prev_state))) eqn:E.
+        + destruct (fold_left
+        (apply_distribute_xtz
+           (xtz_balance (fees_storage_xtz (fees prev_state))
+              (ctx_contract_address ctx))) l
+        (n *
+         xtz_balance (fees_storage_xtz (fees prev_state))
+           (ctx_contract_address ctx) / 100,
+        FMap.add a
+          (n *
+           xtz_balance (fees_storage_xtz (fees prev_state))
+             (ctx_contract_address ctx) / 100 + n0)
+          (fees_storage_xtz (fees prev_state)))) eqn:E1.
+        setoid_rewrite E1. rewrite apply_distribute_xtz_tple_dist in E1. inversion E1.
+        rewrite apply_distribute_xtz_snd_is_fmap_add. cbn.
+Qed.
      
     
 (**----------------- SignerOps Proofs -----------------**)
