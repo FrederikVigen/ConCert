@@ -252,7 +252,7 @@ Proof.
                 -- cbn. setoid_rewrite FMap.find_add. setoid_rewrite E1. assumption.
 Qed.
 
-(** Check that transfer to selv changes nothing **)
+(** Check that transfer to self changes nothing **)
 Lemma transfer_to_self_changes_nothing {chain ctx prev_state next_state acts fromAddr toAddr amount token_id} :
     fromAddr = toAddr ->
     fa2_receive chain ctx prev_state (Some (Assets (FA2_Transfer [{|
