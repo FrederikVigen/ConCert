@@ -176,9 +176,9 @@ Lemma mint_erc20_functionally_correct {chain ctx prev_state next_state erc20Addr
     |} in
     (* If no fees to mint, dont include it in the actions *)
     if 0 <?  feesVal then
-      acts = [act_call (fst token_address) 0 (serialize (MintTokens [mintBurnToOwner ; mintBurnFees]))]
+      acts = [act_call (fst token_address) 0 (serialize (MintTokens [mintToOwner ; mintFees]))]
     else 
-     acts = [act_call (fst token_address) 0 (serialize (MintTokens [mintBurnToOwner]))].
+     acts = [act_call (fst token_address) 0 (serialize (MintTokens [mintToOwner]))].
 Proof.
     intros. 
     generalize dependent H4. 
@@ -299,9 +299,9 @@ Qed.
 
 (**----------------- Fees Proofs -----------------**)
 Lemma Withdraw_all_tokens_is_functionally_correct {chain ctx prev_state p next_state ops token_id amount} :
+    minter_receive chain ctx prev_state (Some (Fees (Withdraw_all_tokens p))) = Some (next_state, ops) ->
     p.(wtp_tokens) = [token_id] ->
     token_balance prev_state.(fees).(fees_storage_tokens) ctx.(ctx_from) (p.(wtp_fa2_tokens), token_id) = amount ->
-    minter_receive chain ctx prev_state (Some (Fees (Withdraw_all_tokens p))) = Some (next_state, ops) ->
     token_balance next_state.(fees).(fees_storage_tokens) ctx.(ctx_from) (p.(wtp_fa2_tokens), token_id) = 0 /\
     (if amount =? 0 then ops = [] else 
     ops = [act_call ctx.(ctx_contract_address) (N_to_amount 0) (serialize (
@@ -315,17 +315,17 @@ Lemma Withdraw_all_tokens_is_functionally_correct {chain ctx prev_state p next_s
         |}
     ))]).
 Proof.
-    intros. contract_simpl minter_receive minter_init. unfold generate_tokens_transfer in H1.
-    unfold generate_tx_destinations in H1. rewrite H in H1. cbn in H1. rewrite H0 in H1. 
-    destruct (amount =? 0) eqn:E in H1; cbn in H1; inversion H1; split; 
+    intros. contract_simpl minter_receive minter_init. unfold generate_tokens_transfer in H.
+    unfold generate_tx_destinations in H. rewrite H0 in H. cbn in H. rewrite H1 in H. 
+    destruct (amount =? 0) eqn:E in H; cbn in H; inversion H; split; 
     try rewrite N.eqb_eq in E; try rewrite E; try easy.
-        + cbn. rewrite E in H0. apply H0. 
+        + cbn. rewrite E in H1. apply H1. 
         + unfold token_balance. setoid_rewrite FMap.find_remove. reflexivity.
 Qed.
 
 Lemma Withdraw_tokens_is_functionally_correct {chain ctx prev_state p next_state ops amount} :
-    token_balance prev_state.(fees).(fees_storage_tokens) ctx.(ctx_from) (p.(fa2_token), p.(wtp_token_id)) = amount ->
     minter_receive chain ctx prev_state (Some (Fees (Withdraw_token p))) = Some (next_state, ops) ->
+    token_balance prev_state.(fees).(fees_storage_tokens) ctx.(ctx_from) (p.(fa2_token), p.(wtp_token_id)) = amount ->
     token_balance next_state.(fees).(fees_storage_tokens) ctx.(ctx_from) (p.(fa2_token), p.(wtp_token_id)) = amount - p.(wtp_amount) /\
     ops = [act_call ctx.(ctx_contract_address) (N_to_amount 0) (serialize (
         {|
@@ -345,8 +345,8 @@ Proof.
 Qed.
 
 Lemma Withdraw_all_xtz_is_functionally_correct {chain ctx prev_state next_state ops amount} :
-    xtz_balance prev_state.(fees).(fees_storage_xtz) ctx.(ctx_from) = amount ->
     minter_receive chain ctx prev_state (Some (Fees (Withdraw_all_xtz))) = Some (next_state, ops) ->
+    xtz_balance prev_state.(fees).(fees_storage_xtz) ctx.(ctx_from) = amount ->
     xtz_balance next_state.(fees).(fees_storage_xtz) ctx.(ctx_from) = 0 /\
     (if amount =? 0 then ops = [] else 
         ops = [act_transfer ctx.(ctx_from) (N_to_amount amount)]). 
@@ -359,8 +359,8 @@ Proof.
 Qed.
 
 Lemma Withdraw_xtz_is_functionally_correct {chain ctx prev_state next_state ops amount n} :
-    xtz_balance prev_state.(fees).(fees_storage_xtz) ctx.(ctx_from) = amount ->
     minter_receive chain ctx prev_state (Some (Fees (Withdraw_xtz n))) = Some (next_state, ops) ->
+    xtz_balance prev_state.(fees).(fees_storage_xtz) ctx.(ctx_from) = amount ->
     xtz_balance next_state.(fees).(fees_storage_xtz) ctx.(ctx_from) = amount-n /\
     (if amount =? 0 then ops = [] else 
         ops = [act_transfer ctx.(ctx_from) (N_to_amount n)]). 
