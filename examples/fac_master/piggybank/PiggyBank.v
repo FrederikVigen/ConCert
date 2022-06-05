@@ -105,7 +105,10 @@ Section FunctionalProperties.
       | None => False
     end.
   Proof.
-    intros H1 H2. unfold piggyBank_receive in H2. destruct msg. unfold piggyBank in H2.
+    intros H1 H2. 
+    unfold piggyBank_receive in H2. 
+    destruct msg; 
+    unfold piggyBank in H2.
     destruct m.
     - destruct prev_state. cbn in *. rewrite H1 in H2. unfold insert in *.
       cbn in H2. destruct (0 <? ctx_amount ctx); try discriminate. inversion H2. cbn. reflexivity.
@@ -125,8 +128,13 @@ Section SafetyProperties.
   Lemma owner_never_changes {prev_state next_state msg chain ctx acts}:
   piggyBank_receive chain ctx prev_state msg = Some (next_state, acts) -> prev_state.(owner) = next_state.(owner).
   Proof.
-    intros H. unfold piggyBank_receive in H. destruct msg. unfold piggyBank in H.
-    destruct m; cbn in *;destruct prev_state; cbn in *; destruct piggyState0; destruct (0 <? ctx_amount ctx); try easy.
+    intros H. 
+    unfold piggyBank_receive in H. 
+    destruct msg; unfold piggyBank in H.
+    destruct m; cbn in *; 
+    destruct prev_state; cbn in *; 
+    destruct piggyState0; 
+    destruct (0 <? ctx_amount ctx); try easy.
     inversion H. cbn in *. reflexivity.
     - destruct_address_eq; inversion H; auto.
     - destruct_address_eq; inversion H; auto.
@@ -136,7 +144,13 @@ Section SafetyProperties.
   Lemma cant_change_smashed {prev_state msg chain ctx}:
     prev_state.(piggyState) = Smashed -> piggyBank_receive chain ctx prev_state msg = None.
   Proof.
-    intros H. unfold piggyBank_receive. destruct msg, prev_state; try auto. cbn in *. unfold piggyBank. rewrite H. destruct (0 <? ctx_amount ctx); destruct m; auto. 
+    intros H. 
+    unfold piggyBank_receive. 
+    destruct msg, prev_state; try auto. 
+    cbn in *. unfold piggyBank. 
+    rewrite H. 
+    destruct (0 <? ctx_amount ctx); 
+    now destruct m.
   Qed.
 
   Lemma if_intact_balance_only_increasing {prev_state next_state chain ctx new_acts}:
@@ -144,15 +158,22 @@ Section SafetyProperties.
     piggyBank_receive chain ctx prev_state (Some Insert) = Some (next_state, new_acts) ->
     prev_state.(balance) < next_state.(balance).
   Proof.
-    intros H H1. destruct prev_state. cbn in *. rewrite H in H1. destruct (0 <? ctx_amount ctx) eqn:E; try easy.
-    inversion H1. cbn in *. apply Z.ltb_lt in E; omega.
+    intros H H1. 
+    destruct prev_state. 
+    cbn in *. 
+    rewrite H in H1. 
+    destruct (0 <? ctx_amount ctx) eqn:E; try easy.
+    inversion H1. 
+    cbn in *. 
+    apply Z.ltb_lt in E; omega.
   Qed. 
 
   Lemma init_total_supply_correct : forall chain ctx setup state,
     piggyBank_init chain ctx setup = Some state ->
       state.(balance) = 0.
   Proof.
-    intros; unfold piggyBank_init in H; inversion H; easy.
+    intros; unfold piggyBank_init in H; 
+    now inversion H.
   Qed.
 
   Lemma balance_always_positive : forall bstate caddr,
@@ -164,13 +185,22 @@ Section SafetyProperties.
   Proof.
     intros * reach deployed.
     apply (lift_contract_state_prop piggyBank_contract); try easy.
-    - cbn. intros. apply init_total_supply_correct in H. omega.
-    - cbn. intros. unfold piggyBank_receive in H0. destruct msg; try easy.
-    unfold piggyBank in H0. destruct m. 
-    + contract_simpl piggyBank_receive piggyBank_init. destruct cstate, piggyState0; try easy. 
-    inversion H0. cbn in *. apply Z.ltb_lt in H1. omega.
-    + destruct cstate, piggyState0; try easy. destruct_address_eq; try easy.
-    inversion H0. cbn in *. easy.
+    - cbn. 
+      intros. 
+      apply init_total_supply_correct in H. 
+      omega.
+    - cbn. intros. 
+      unfold piggyBank_receive in H0. 
+      destruct msg; try easy.
+      unfold piggyBank in H0. 
+      destruct m. 
+      + contract_simpl piggyBank_receive piggyBank_init. 
+        destruct cstate, piggyState0; try easy. 
+        inversion H0. cbn in *. apply Z.ltb_lt in H1. 
+        omega.
+      + destruct cstate, piggyState0; try easy. 
+        destruct_address_eq; try easy.
+        now inversion H0.
   Qed.
 
   Lemma owner_never_changes2 : forall bstate caddr (trace : ChainTrace empty_state bstate),

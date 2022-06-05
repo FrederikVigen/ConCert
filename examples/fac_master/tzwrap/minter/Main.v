@@ -142,7 +142,7 @@ Definition minter_init (chain : Chain) (ctx : ContractCallContext) (setup : Setu
         storage_metadata := meta
     |}.
 
-(** The minter contract *)
+(* The minter contract *)
 Definition minter_contract : Contract Setup EntryPoints State :=
     build_contract minter_init minter_receive.
 
@@ -160,32 +160,48 @@ Lemma mint_erc20_functionally_correct {chain ctx prev_state next_state erc20Addr
     FMap.find erc20Address prev_state.(assets).(erc20tokens) = Some token_address ->
     FMap.find (ctx.(ctx_contract_address), token_address) prev_state.(fees).(fees_storage_tokens) = Some v ->
     FMap.find (ctx.(ctx_contract_address), token_address) next_state.(fees).(fees_storage_tokens) = Some new_v ->
-    feesVal = (amount * n /10000) ->
+    feesVal = (amount * n / 10000) ->
     v + feesVal = new_v /\
-    (*Amount to mint to owner*)
-    let mintBurnToOwner := {|
+    (* Amount to mint to owner *)
+    let mintToOwner := {|
         mint_burn_owner := owner;
         mint_burn_token_id := snd token_address;
         mint_burn_amount := amount - feesVal
     |} in
-    (*Fees to mint to contract itself*)
-    let mintBurnFees := {|
+    (* Fees to mint to contract itself *)
+    let mintFees := {|
         mint_burn_owner := ctx.(ctx_contract_address);
         mint_burn_token_id := snd token_address;
         mint_burn_amount := feesVal
     |} in
-    (*If no fees to mint, dont include it in the actions*)
+    (* If no fees to mint, dont include it in the actions *)
     if 0 <?  feesVal then
-      acts = [act_call (fst token_address) 0 (serialize (MintTokens [mintBurnToOwner ; mintBurnFees]))]
+      acts = [act_call (fst token_address) 0 (serialize (MintTokens [mintToOwner ; mintFees]))]
     else 
-     acts = [act_call (fst token_address) 0 (serialize (MintTokens [mintBurnToOwner]))].
+     acts = [act_call (fst token_address) 0 (serialize (MintTokens [mintToOwner]))].
 Proof.
-    intros. generalize dependent H4. contract_simpl minter_receive minter_init. intro. cbn in *. split.
-    - unfold get_fa2_token_id in H9. setoid_rewrite H9 in H1. inversion H1. subst. unfold Fees_Lib.token_balance in H2.
-        setoid_rewrite FMap.find_add in H3. unfold Fees_Lib.token_balance in H3.
-        setoid_rewrite H2 in H3. cbn in *. unfold Fees_Lib.bps_of in H3. inversion H3. easy.
-    - unfold get_fa2_token_id in H9. setoid_rewrite H9 in H1. inversion H1. destruct feesVal;
-        unfold bps_of in *; rewrite <- H8; cbn; easy.
+    intros. 
+    generalize dependent H4. 
+    contract_simpl minter_receive minter_init. 
+    intro. cbn in *. 
+    split.
+    -   unfold get_fa2_token_id in H9. 
+        setoid_rewrite H9 in H1. 
+        inversion H1. 
+        subst. 
+        unfold Fees_Lib.token_balance in H2.
+        setoid_rewrite FMap.find_add in H3. 
+        unfold Fees_Lib.token_balance in H3.
+        setoid_rewrite H2 in H3. 
+        cbn in *. 
+        unfold Fees_Lib.bps_of in H3. 
+        now inversion H3.
+    -   unfold get_fa2_token_id in H9. 
+        setoid_rewrite H9 in H1. 
+        inversion H1. 
+        destruct feesVal;
+        unfold bps_of in *; 
+        rewrite <- H8; now cbn.
 Qed.
 
 Lemma add_erc20_functionally_correct {chain ctx prev_state next_state eth_contract token_address acts ta} : 
@@ -283,9 +299,9 @@ Qed.
 
 (**----------------- Fees Proofs -----------------**)
 Lemma Withdraw_all_tokens_is_functionally_correct {chain ctx prev_state p next_state ops token_id amount} :
+    minter_receive chain ctx prev_state (Some (Fees (Withdraw_all_tokens p))) = Some (next_state, ops) ->
     p.(wtp_tokens) = [token_id] ->
     token_balance prev_state.(fees).(fees_storage_tokens) ctx.(ctx_from) (p.(wtp_fa2_tokens), token_id) = amount ->
-    minter_receive chain ctx prev_state (Some (Fees (Withdraw_all_tokens p))) = Some (next_state, ops) ->
     token_balance next_state.(fees).(fees_storage_tokens) ctx.(ctx_from) (p.(wtp_fa2_tokens), token_id) = 0 /\
     (if amount =? 0 then ops = [] else 
     ops = [act_call ctx.(ctx_contract_address) (N_to_amount 0) (serialize (
@@ -299,17 +315,17 @@ Lemma Withdraw_all_tokens_is_functionally_correct {chain ctx prev_state p next_s
         |}
     ))]).
 Proof.
-    intros. contract_simpl minter_receive minter_init. unfold generate_tokens_transfer in H1.
-    unfold generate_tx_destinations in H1. rewrite H in H1. cbn in H1. rewrite H0 in H1. 
-    destruct (amount =? 0) eqn:E in H1; cbn in H1; inversion H1; split; 
+    intros. contract_simpl minter_receive minter_init. unfold generate_tokens_transfer in H.
+    unfold generate_tx_destinations in H. rewrite H0 in H. cbn in H. rewrite H1 in H. 
+    destruct (amount =? 0) eqn:E in H; cbn in H; inversion H; split; 
     try rewrite N.eqb_eq in E; try rewrite E; try easy.
-        + cbn. rewrite E in H0. apply H0. 
+        + cbn. rewrite E in H1. apply H1. 
         + unfold token_balance. setoid_rewrite FMap.find_remove. reflexivity.
 Qed.
 
 Lemma Withdraw_tokens_is_functionally_correct {chain ctx prev_state p next_state ops amount} :
-    token_balance prev_state.(fees).(fees_storage_tokens) ctx.(ctx_from) (p.(fa2_token), p.(wtp_token_id)) = amount ->
     minter_receive chain ctx prev_state (Some (Fees (Withdraw_token p))) = Some (next_state, ops) ->
+    token_balance prev_state.(fees).(fees_storage_tokens) ctx.(ctx_from) (p.(fa2_token), p.(wtp_token_id)) = amount ->
     token_balance next_state.(fees).(fees_storage_tokens) ctx.(ctx_from) (p.(fa2_token), p.(wtp_token_id)) = amount - p.(wtp_amount) /\
     ops = [act_call ctx.(ctx_contract_address) (N_to_amount 0) (serialize (
         {|
@@ -329,8 +345,8 @@ Proof.
 Qed.
 
 Lemma Withdraw_all_xtz_is_functionally_correct {chain ctx prev_state next_state ops amount} :
-    xtz_balance prev_state.(fees).(fees_storage_xtz) ctx.(ctx_from) = amount ->
     minter_receive chain ctx prev_state (Some (Fees (Withdraw_all_xtz))) = Some (next_state, ops) ->
+    xtz_balance prev_state.(fees).(fees_storage_xtz) ctx.(ctx_from) = amount ->
     xtz_balance next_state.(fees).(fees_storage_xtz) ctx.(ctx_from) = 0 /\
     (if amount =? 0 then ops = [] else 
         ops = [act_transfer ctx.(ctx_from) (N_to_amount amount)]). 
@@ -343,8 +359,8 @@ Proof.
 Qed.
 
 Lemma Withdraw_xtz_is_functionally_correct {chain ctx prev_state next_state ops amount n} :
-    xtz_balance prev_state.(fees).(fees_storage_xtz) ctx.(ctx_from) = amount ->
     minter_receive chain ctx prev_state (Some (Fees (Withdraw_xtz n))) = Some (next_state, ops) ->
+    xtz_balance prev_state.(fees).(fees_storage_xtz) ctx.(ctx_from) = amount ->
     xtz_balance next_state.(fees).(fees_storage_xtz) ctx.(ctx_from) = amount-n /\
     (if amount =? 0 then ops = [] else 
         ops = [act_transfer ctx.(ctx_from) (N_to_amount n)]). 
