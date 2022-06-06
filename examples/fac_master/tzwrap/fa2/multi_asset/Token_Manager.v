@@ -20,7 +20,7 @@ Context {BaseTypes : ChainBase}.
 Definition mint_update_balances (txs : list MintBurnTx) (ledger: Ledger) : Ledger :=
     let mint := fun (l: Ledger) (tx: MintBurnTx) =>
         inc_balance tx.(mint_burn_owner) tx.(mint_burn_token_id) tx.(mint_burn_amount) l in
-    fold_left mint txs ledger .
+    fold_left mint txs ledger.
 
 Definition mint_update_total_supply (txs : list MintBurnTx) (total_supplies : TokenTotalSupply) : option TokenTotalSupply :=
     let update := fun (supplies_opt : option TokenTotalSupply) (tx : MintBurnTx) =>
@@ -38,7 +38,7 @@ Definition mint_tokens (param : MintBurnTokensParam) (storage : MultiTokenStorag
     Some new_s.
 
 Definition burn_update_balances (txs : list MintBurnTx) (ledger : Ledger) : option Ledger :=
-    let burn := fun (l_opt : option Ledger)  (tx : MintBurnTx) =>
+    let burn := fun (l_opt : option Ledger) (tx : MintBurnTx) =>
         do l <- l_opt ;
         dec_balance tx.(mint_burn_owner) tx.(mint_burn_token_id) tx.(mint_burn_amount) l 
     in
@@ -69,4 +69,5 @@ Definition token_manager (param : TokenManager) (s : MultiTokenStorage) : option
         Some (new_s, [])
     end.
     
+
 End Token_Manager.

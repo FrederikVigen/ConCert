@@ -530,7 +530,7 @@ Lemma change_quorum_functionally_correct {chain ctx prev_state t new_signers nex
 Proof.
     intros. contract_simpl multisig_receive multisig_init. split. 
     - rewrite <- N.ltb_ge. easy.
-    - split; try easy.  
+    - split; easy.  
 Qed.
 
 Lemma change_threshold_functionally_correct {chain ctx prev_state t next_state} :
