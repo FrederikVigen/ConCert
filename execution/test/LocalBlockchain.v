@@ -19,13 +19,13 @@ From Coq Require Import Permutation.
 From Coq Require Import List.
 From Coq Require Import Psatz.
 
-Import RecordSetNotations.
 Import ListNotations.
 
 Section LocalBlockchain.
 Local Open Scope bool.
 
 Context {AddrSize : N}.
+Context {DepthFirst : bool}.
 
 Definition ContractAddrBase : N := AddrSize / 2.
 
@@ -183,7 +183,7 @@ Section ExecuteActions.
         (try rewrite FMap.find_partial_alter;
          try rewrite FMap.find_partial_alter_ne by auto;
          cbn); lia.
-  Qed.
+  Defined.
 
   Lemma set_contract_state_equiv addr state (lc : LocalChain) (env : Environment) :
     EnvironmentEquiv lc env ->
@@ -199,7 +199,7 @@ Section ExecuteActions.
     destruct_address_eq.
     - subst. now rewrite FMap.find_add.
     - rewrite FMap.find_add_ne; auto.
-  Qed.
+  Defined.
 
   Lemma add_contract_equiv addr wc (lc : LocalChain) (env : Environment) :
     EnvironmentEquiv lc env ->
@@ -214,7 +214,7 @@ Section ExecuteActions.
     destruct_address_eq.
     - subst. now rewrite FMap.find_add.
     - rewrite FMap.find_add_ne; auto.
-  Qed.
+  Defined.
 
   Local Open Scope Z.
   Lemma gtb_le x y :
@@ -225,7 +225,7 @@ Section ExecuteActions.
     rewrite Z.gtb_ltb in H.
     apply Z.ltb_ge.
     auto.
-  Qed.
+  Defined.
 
   Lemma ltb_ge x y :
     x <? y = false ->
@@ -234,7 +234,7 @@ Section ExecuteActions.
     intros H.
     apply Z.ltb_ge in H.
     lia.
-  Qed.
+  Defined.
 
   Local Hint Resolve gtb_le ltb_ge : core.
 
@@ -287,7 +287,7 @@ Section ExecuteActions.
     match goal with
     | [|- context[N.leb ?a ?b = true]] => destruct (N.leb_spec a b); auto; lia
     end.
-  Qed.
+  Defined.
 
   Local Hint Resolve get_new_contract_addr_is_contract_addr : core.
   Lemma deploy_contract_step origin from amount wc setup act lc_before new_acts lc_after :
@@ -403,7 +403,7 @@ Proof.
   apply Bool.negb_true_iff in to_acc.
   apply build_is_valid_next_block; cbn; auto.
   lia.
-Qed.
+Defined.
 
 Definition find_origin_neq_from (actions : list Action) : option Action :=
   find (fun act => negb (address_eqb (act_origin act) (act_from act))) actions.
@@ -419,7 +419,7 @@ Proof.
   assert (all_nin0 : forall x, In x actions -> (act_origin x =? act_from x)%address = true).
   { intros. now apply ssrbool.negbFE. }
   now apply Forall_forall in all_nin0.
-Qed.
+Defined.
 
 Definition find_invalid_root_action (actions : list Action) : option Action :=
   find (fun act => address_is_contract (act_from act)) actions.
@@ -433,7 +433,7 @@ Proof.
   specialize (List.find_none _ _ find_none) as all_nin.
   unfold act_is_from_account.
   now apply Forall_forall in all_nin.
-Qed.
+Defined.
 
 Definition add_new_block (header : BlockHeader) (lc : LocalChain) : LocalChain :=
   let lc := add_balance (block_creator header) (block_reward header) lc in
@@ -459,7 +459,7 @@ Proof.
     apply eq.
   - rewrite FMap.find_partial_alter_ne; auto.
     apply eq.
-Qed.
+Defined.
 
 (* The computational bits of adding a block *)
 Definition add_block_exec
@@ -494,39 +494,30 @@ Proof.
   unfold add_block_exec in lcopt.
   destruct lcopt as [lc|e] eqn:exec; [|exact (Err e)].
   subst lcopt.
-  cbn -[execute_actions] in exec.
-  destruct (validate_header _) eqn:validate; [|cbn in *; congruence].
-  destruct (find_origin_neq_from _) eqn:no_origin_neq_from;[cbn in *; congruence|].
-  destruct (find_invalid_root_action _) eqn:no_invalid_root_act; [cbn in *; congruence|].
+  destruct (validate_header _) eqn:validate; [|cbn in exec; congruence].
+  destruct (find_origin_neq_from _) eqn:no_origin_neq_from;[cbn in exec; congruence|].
+  destruct (find_invalid_root_action _) eqn:no_invalid_root_act; [cbn in exec; congruence|].
   destruct lcb as [prev_lc_end prev_lcb_trace].
   refine (Ok {| lcb_lc := lc; lcb_trace := _ |}).
   cbn -[execute_actions] in exec.
 
   refine (execute_actions_trace _ _ _ _ _ _ exec).
   refine (snoc prev_lcb_trace _).
-  eapply step_block; eauto.
+  apply (step_block _ _ header); auto.
   apply add_new_block_equiv.
   reflexivity.
 Defined.
 
-Definition LocalChainBuilderDepthFirst : ChainBuilderType :=
+Definition LocalChainBuilderImpl : ChainBuilderType :=
   {| builder_type := LocalChainBuilder;
      builder_initial := lcb_initial;
      builder_env lcb := lcb_lc lcb;
-     builder_add_block := add_block true;
-     builder_trace := lcb_trace; |}.
-
-Definition LocalChainBuilderBreadthFirst : ChainBuilderType :=
-  {| builder_type := LocalChainBuilder;
-     builder_initial := lcb_initial;
-     builder_env lcb := lcb_lc lcb;
-     builder_add_block := add_block false;
+     builder_add_block := add_block DepthFirst;
      builder_trace := lcb_trace; |}.
 
 End LocalBlockchain.
 
 Arguments LocalChainBase : clear implicits.
 Arguments LocalChainBuilder : clear implicits.
-Arguments LocalChainBuilderDepthFirst : clear implicits.
-Arguments LocalChainBuilderBreadthFirst : clear implicits.
+Arguments LocalChainBuilderImpl : clear implicits.
 Arguments lcb_initial : clear implicits.

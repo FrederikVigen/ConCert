@@ -1,31 +1,25 @@
-From QuickChick Require Import QuickChick.
-Import QcNotation.
 From ConCert.Utils Require Import Extras.
 From ConCert.Execution Require Import Blockchain.
 From ConCert.Execution Require Import BoundedN.
 From ConCert.Execution Require Import Containers.
-From ConCert.Execution Require Import LocalBlockchain.
 From ConCert.Execution Require Import Serializable.
+From ConCert.Execution.Test Require Import QCTest.
 From ConCert.Examples.BAT Require Import BATCommon.
-From ConCert.Examples.BAT Require Import BAT_AltFix.
+From ConCert.Examples.BAT Require Import BATFixed.
 From ConCert.Examples.BAT Require Import BATGens.
 From ConCert.Examples.BAT Require Import BATPrinters.
 From ConCert.Examples.BAT Require Import BATTestCommon.
-From ConCert.Execution.QCTest Require Import ChainPrinters.
-From ConCert.Execution.QCTest Require Import SerializablePrinters.
-From ConCert.Execution.QCTest Require Import TestUtils.
-From ConCert.Execution.QCTest Require Import TraceGens.
 From Coq Require Import List.
 From Coq Require Import ZArith_base.
 Import ListNotations.
 
 
-(* -------------------------- Tests of the BAT Implementation -------------------------- *)
+(* -------------------------- Tests of the BATFixed Implementation -------------------------- *)
 
 Definition fundingStart_ := 1.
 Definition fundingEnd_ := 4.
-Definition tokenCap_ := 81%N.
-Definition tokenMin_ := 43%N.
+Definition tokenCap_ := 101%N.
+Definition tokenMin_ := 78%N.
 
 Definition bat_setup := BATCommon.build_setup initSupply_
                                               ethFund
@@ -35,69 +29,65 @@ Definition bat_setup := BATCommon.build_setup initSupply_
                                               exchangeRate_
                                               tokenCap_
                                               tokenMin_.
-Definition deploy_bat := create_deployment 0 BAT_AltFix.contract bat_setup.
 
 (* In the initial chain we transfer some assets to a few accounts, just to make the addresses
    present in the chain state. The amount transferred is irrelevant. *)
 Definition token_cb :=
-  ResultMonad.unpack_result (TraceGens.add_block (lcb_initial AddrSize)
+  ResultMonad.unpack_result (TraceGens.add_block empty_chain
   [
-    build_act creator creator (Blockchain.act_transfer person_1 10);
-    build_act creator creator (Blockchain.act_transfer person_2 7);
-    build_act creator creator (Blockchain.act_transfer person_3 6);
-    build_act creator creator (Blockchain.act_transfer person_4 10);
-    build_act creator creator (Blockchain.act_transfer ethFund 2);
-    build_act creator creator (Blockchain.act_transfer batFund 2);
-    build_act creator creator deploy_bat
+    build_transfer creator person_1 10;
+    build_transfer creator person_2 7;
+    build_transfer creator person_3 6;
+    build_transfer creator person_4 10;
+    build_transfer creator ethFund 2;
+    build_transfer creator batFund 2;
+    build_deploy creator 0 BATFixed.contract bat_setup
   ]).
 
 Module TestInfo <: BATGensInfo.
-  Definition initial_chain := token_cb.
-  Definition contract := BAT_AltFix.contract.
   Definition contract_addr := contract_base_addr.
-  Definition accounts := [batFund; ethFund; person_1; person_2; person_3; person_4; person_5].
-  Definition gAccount (c : Chain) := elems [batFund; ethFund; person_1; person_2;
-                                             person_3; person_4; person_5].
+  Definition accounts := [batFund; ethFund] ++ test_chain_addrs_5.
+  Definition gAccount := gAddress accounts.
   Definition bat_addr := batFund.
   Definition fund_addr := ethFund.
   Definition accounts_total_balance := 37%Z.
   Definition trace_length := 7.
-  Definition bat_addr_refundable := true.
-  Definition bat_addr_fundable := true.
-  Definition eip20_transactions_before_finalized := true.
+  Definition bat_addr_refundable := false.
+  Definition bat_addr_fundable := false.
+  Definition eip20_transactions_before_finalized := false.
 End TestInfo.
 Module MG := BATGens TestInfo. Import MG.
+
+Module NotationInfo <: TestNotationParameters.
+  Definition gAction := gBATAction.
+  Definition init_cb := token_cb.
+End NotationInfo.
+Module TN := TestNotations NotationInfo. Import TN.
 
 
 
 (* Test generators *)
 
 (* Sample generator to see quality of generated chains *)
-(* Sample (gTokenChain 2 token_cb 7). *)
+(* Sample (gChain). *)
 
-(* Unless something is wrong witht he contract it should be
-    the case that gBATActionValid only produces valid actions *)
-(* QuickChick (forAll (gInvalidActions 1 token_cb 7 gBATActionValid)
+(* In BATTests.v we saw that there was a problem with refund actions
+   sometimes not being valid even though they should be.
+   We expect this problem to be fixed and therefore not get any invalid
+   actions from the gBATActionValid generator *)
+(* QuickChick (forAll (gInvalidActions gBATActionValid)
             (fun x => collect (snd x) true)). *)
 (*
-8970 :
-20 : Action{act_from: _, act_body: (act_call 128%256, 0, transfer _ 0)}
-10 : Action{act_from: _, act_body: (act_call 128%256, 0, transfer_from _ _ 0)}
+10000 :
 +++ Passed 10000 tests (0 discards)
-*)
-(*
-  We see that the only failed requests are transfers of 0 from accounts that are
-  not in the contract state. This is because the EIP20 generator will generate
-  transfers of 0 between random addresses when there are no addresses in the
-  contract state. These shouldn't fail but it does not seems relate to BAT.
 *)
 
 (* Verify hardness of finalizing BAToken.
    Goal is ~ 2/3 of generated chains are finalized *)
-(* QuickChick (forAllTokenChainBuilders 8 (fun cb => collect (get_chain_finalized cb) true)). *)
+(* QuickChick (forAllChainBuilders (fun cb => collect (get_chain_finalized cb) true)). *)
 (*
-  6979 : true
-  3021 : false
+  7023 : true
+  2977 : false
   +++ Passed 10000 tests (0 discards)
 *)
 
@@ -105,52 +95,46 @@ Module MG := BATGens TestInfo. Import MG.
    We want the average chain height to be close to full length
    since this is a sign that the generator does not generate 
    invalid requests so often that it affects chain quality *)
-(* QuickChick (forAllTokenChainBuilders 8 (fun cb => collect (get_chain_height cb) true)). *)
+(* QuickChick (forAllChainBuilders (fun cb => collect (get_chain_height cb) true)). *)
 (*
-  9820 : 9
-  53 : 6
-  42 : 7
-  35 : 8
-  32 : 5
-  11 : 1
-  6 : 4
-  1 : 3
+  9954 : 9
+  19 : 4
+  11 : 5
+  9 : 6
+  3 : 7
+  3 : 3
+  1 : 1
   +++ Passed 10000 tests (0 discards)
 *)
 
 (* Verify spread of tokens after funding period is over.
    We do this to see it it possible to hit the funding cap
    and how easy it is to do. *)
-(* QuickChick (forAllTokenChainBuilders 6 (fun cb => collect (get_chain_tokens cb) true)). *)
+(* QuickChick (forAllChainBuilders (fun cb => collect (get_chain_tokens cb) true)). *)
 (*
-  672 : 48
-  662 : 54
-  654 : 45
-  648 : 57
-  636 : 51
-  591 : 63
-  573 : 42
-  572 : 60
-  551 : 66
-  513 : 69
-  485 : 39
-  433 : 36
-  420 : 72
-  375 : 33
-  343 : 75
-  341 : 78
-  312 : 30
-  296 : 81
-  270 : 27
-  211 : 24
-  119 : 21
-  102 : 18
-  75 : 0
-  70 : 15
-  37 : 12
-  31 : 9
-  5 : 6
-  3 : 3
+  934 : 101
+  887 : 86
+  873 : 95
+  852 : 83
+  841 : 89
+  802 : 92
+  782 : 80
+  751 : 98
+  686 : 77
+  559 : 71
+  551 : 74
+  451 : 68
+  323 : 65
+  283 : 62
+  161 : 59
+  99 : 56
+  67 : 53
+  50 : 50
+  17 : 0
+  15 : 47
+  10 : 44
+  4 : 41
+  2 : 38
   +++ Passed 10000 tests (0 discards)
 *)
 
@@ -258,8 +242,11 @@ Definition create_tokens_valid (chain : Chain) (cctx : ContractCallContext) (old
                                (msg : Msg) (result_opt : option (State * list ActionBody)) :=
   match (result_opt, msg) with
   | (Some (new_state, _), create_tokens) =>
+    let from := cctx.(ctx_from) in
     let amount := cctx.(ctx_amount) in
     let current_slot := chain.(current_slot) in
+    (* batFund should not be allowed to call create_tokens *)
+    let from_valid := negb (address_eqb from batFund) in
     (* Create_tokens should only return some if amount is larger than zero *)
     let amount_valid := Z.leb 0 amount in
     (* Create_tokens should be callable if the token is not finalized *)
@@ -272,7 +259,8 @@ Definition create_tokens_valid (chain : Chain) (cctx : ContractCallContext) (old
     let new_token_amount_valid := (total_supply old_state) + (Z.to_N amount * old_state.(tokenExchangeRate))
                                   <=? old_state.(tokenCreationCap) in
     whenFail (show old_state ++ nl ++ show result_opt)
-    (checker (amount_valid &&
+    (checker (from_valid &&
+              amount_valid &&
               is_finalized_valid &&
               slot_valid &&
               new_token_amount_valid))
@@ -326,12 +314,6 @@ Definition post_finalize_update_correct (chain : Chain) (cctx : ContractCallCont
     let action_amount_correct := Z.eqb amount contract_balance in
     let action_to_valid := negb (address_is_contract to) in
     let action_amount_valid := Z.leb amount contract_balance in
-    (* The token balance of batFund should be increased by initSupply *)
-    let balance_correct :=
-      N.eqb (get_balance new_state batFund) ((get_balance old_state batFund) + (initSupply old_state)) in
-    (* The total supply field should be increased by initSupply *)
-    let total_supply_correct :=
-      N.eqb (total_supply new_state) ((total_supply old_state) + (initSupply old_state)) in
     whenFail (show old_state ++ nl ++ show result_opt)
     (checker (is_finalized_correct &&
               action_to_correct &&
@@ -351,6 +333,7 @@ Definition finalize_valid (chain : Chain) (cctx : ContractCallContext) (old_stat
   match (result_opt, msg) with
   | (Some (new_state, _), finalize) =>
     let from := cctx.(ctx_from) in
+    let amount := cctx.(ctx_amount) in
     let current_slot := chain.(current_slot) in
     (* Only ethFund should be allowed to call finalize *)
     let from_valid := address_eqb from ethFund in
@@ -363,11 +346,14 @@ Definition finalize_valid (chain : Chain) (cctx : ContractCallContext) (old_stat
         is within valid (tokenCreationMin, tokenCreationCap) range *)
     let total_supply_valid := (N.leb old_state.(tokenCreationMin) (total_supply old_state)) &&
                               (N.leb (total_supply old_state) old_state.(tokenCreationCap)) in
+    (* Finalize call must not be payable *)
+    let amount_valid := Z.eqb amount 0 in
     whenFail (show old_state ++ nl ++ show result_opt)
     (checker (from_valid &&
               is_finalized_valid &&
               can_finalize_valid &&
-              total_supply_valid))
+              total_supply_valid &&
+              amount_valid))
   (* if 'receive' failed, or msg is not a finalize
      then just discard this test *)
   | _ => checker false
@@ -384,10 +370,13 @@ Definition post_finalize_safe (chain : Chain) (cctx : ContractCallContext) (old_
     let allowances_unchanged := fmap_eqb (fun fmap fmap' => fmap_eqb N.eqb fmap fmap')
                                 (allowances old_state) (allowances new_state) in
     (* Finalize should not change balances *)
-    let other_balances_unchanged := fmap_filter_eqb [batFund] N.eqb (balances old_state) (balances new_state) in
+    let balances_unchanged := fmap_eqb N.eqb (balances old_state) (balances new_state) in
+    (* Finalize should not change total_supply *)
+    let total_supply_unchanged := N.eqb (total_supply old_state) (total_supply new_state) in
     whenFail (show old_state ++ nl ++ show result_opt)
     (checker (allowances_unchanged &&
-              other_balances_unchanged))
+              balances_unchanged &&
+              total_supply_unchanged))
   (* if 'receive' failed, or msg is not a finalize
      then just discard this test *)
   | _ => checker false
@@ -411,10 +400,9 @@ Definition post_refund_update_correct (chain : Chain) (cctx : ContractCallContex
     let eth_to_refund := Z.of_N (from_bal_old / (tokenExchangeRate old_state)) in
     (* Refund should subtract the refunded account balance from total_supply *)
     let total_supply_correct := N.eqb (total_supply old_state)
-                                ((total_supply new_state) + from_bal_old -
-                                (N.modulo from_bal_old exchangeRate_)) in
+                                ((total_supply new_state) + from_bal_old) in
     (* Refund should set the refunded account balance to 0 *)
-    let from_balance_correct := N.eqb from_bal_new (N.modulo from_bal_old exchangeRate_) in
+    let from_balance_correct := N.eqb from_bal_new 0 in
     (* Refund shoul pay the refunded account *)
     let action_to_correct := address_eqb from to in
     (* Refund should pay account_balance / exchange_rate *)
@@ -443,7 +431,10 @@ Definition refund_valid (chain : Chain) (cctx : ContractCallContext) (old_state 
   | (Some (new_state, _), refund) =>
     let current_slot := chain.(current_slot) in
     let from := cctx.(ctx_from) in
+    let amount := cctx.(ctx_amount) in
     let from_bal_old := with_default 0 (FMap.find from (balances old_state)) in
+    (* batFund should not be allowed a refund *)
+    let from_valid := negb (address_eqb from batFund) in
     (* Refund should only be allowed if contract not finalized *)
     let is_finalized_valid := negb old_state.(isFinalized) in
     (* Refund should only be allowed if funding period is over *)
@@ -452,11 +443,15 @@ Definition refund_valid (chain : Chain) (cctx : ContractCallContext) (old_state 
     let total_supply_valid := N.ltb (total_supply old_state) old_state.(tokenCreationMin) in
     (* Refund shoul only be allowed if sender has tokens *)
     let balance_valid := N.ltb 0 from_bal_old in
+    (* Refund call must not be payable *)
+    let amount_valid := Z.eqb amount 0 in
     whenFail (show old_state ++ nl ++ show result_opt)
-    (checker (is_finalized_valid &&
+    (checker (from_valid &&
+              is_finalized_valid &&
               current_slot_valid &&
               total_supply_valid &&
-              balance_valid))
+              balance_valid &&
+              amount_valid))
   (* if 'receive' failed, or msg is not a refund
      then just discard this test *)
   | _ => checker false
@@ -769,7 +764,7 @@ Definition contract_balance_lower_bound (cs : ChainState) :=
   | Some cstate =>
     let is_finalized := cstate.(isFinalized) in
     let contract_balance_correct := Z.geb contract_balance
-      (Z.of_N ((total_supply cstate) / cstate.(tokenExchangeRate))) in
+      (Z.of_N (((total_supply cstate) - (initSupply cstate)) / cstate.(tokenExchangeRate))) in
       if is_finalized
       then checker true
       else checker contract_balance_correct
@@ -779,20 +774,45 @@ Definition contract_balance_lower_bound (cs : ChainState) :=
     divided by the exhange rate unless the token was successfully funded.
    If this property does not hold then it implies that there can be cases where a user
     will not be able to get a refund should the funding fail.
+   The number of refundable tokens is the total_supply - init_supply, i.e. all tokens created
+    by users funding the project.
 *)
 (* QuickChick ({{contract_balance_lower_bound}}). *)
 (* +++ Passed 10000 tests (0 discards) *)
 
+Definition contract_balance_lower_bound' (cs : ChainState) :=
+  let contract_balance := env_account_balances cs contract_base_addr in
+  match get_contract_state State cs contract_base_addr with
+  | Some cstate =>
+    let is_finalized := cstate.(isFinalized) in
+    let bat_fund_balance := with_default 0 (FMap.find batFund (balances cstate)) in
+    let contract_balance_correct := Z.geb contract_balance
+      (Z.of_N (((total_supply cstate) - bat_fund_balance) / cstate.(tokenExchangeRate))) in
+      if is_finalized
+      then checker true
+      else checker contract_balance_correct
+  | None => checker true
+  end.
+(* Since the initial supply belonging to the batFund address is not supposed to be refundable
+    we should have a stronger lower bound saying that the contract balance should always be
+    at least as big as the (total_supply - batFund_balance) / exhange_rate
+    unless the token was successfully funded.
+   If this property does not hold but the previous property holds then it implies that
+    there is a way that some of the initial supply can be refunded, which then it implies
+    that there can be cases where a real user will not be able to get a refund should the funding fail.
+*)
+(* QuickChick ({{contract_balance_lower_bound'}}). *)
+(* +++ Passed 10000 tests (0 discards) *)
+
 Definition partially_funded_cb :=
-  ResultMonad.unpack_result (TraceGens.add_block (lcb_initial AddrSize)
+  ResultMonad.unpack_result (TraceGens.add_block empty_chain
   [
-    build_act creator creator (Blockchain.act_transfer person_1 10);
-    build_act creator creator (Blockchain.act_transfer person_2 7);
-    build_act creator creator (Blockchain.act_transfer person_3 6);
-    build_act creator creator (Blockchain.act_transfer person_4 10);
-    build_act creator creator deploy_bat;
-    build_act person_1 person_1 (Blockchain.act_call contract_base_addr 1
-                                            ((@serialize BATCommon.Msg _) create_tokens))
+    build_transfer creator person_1 10;
+    build_transfer creator person_2 7;
+    build_transfer creator person_3 6;
+    build_transfer creator person_4 10;
+    build_deploy creator 0 BATFixed.contract bat_setup;
+    build_call person_1 contract_base_addr 1 create_tokens
   ]).
 (* Check that it is possible to fully refund from a state
     where at least one token was created
@@ -811,23 +831,26 @@ Action{act_from: 10%256, act_body: (act_transfer 14%256, 10)};
 Action{act_from: 10%256, act_body: (act_deploy 0, transfer 19%256 17)};
 Action{act_from: 11%256, act_body: (act_call 128%256, 1, create_tokens)}];
 Block 2 [
-Action{act_from: 17%256, act_body: (act_call 128%256, 0, transfer 14%256 3)};
-Action{act_from: 12%256, act_body: (act_call 128%256, 4, create_tokens)}];
+Action{act_from: 13%256, act_body: (act_call 128%256, 1, create_tokens)};
+Action{act_from: 11%256, act_body: (act_call 128%256, 4, create_tokens)}];
 Block 3 [
-Action{act_from: 11%256, act_body: (act_call 128%256, 4, create_tokens)};
-Action{act_from: 14%256, act_body: (act_call 128%256, 0, approve 12%256 0)}];
+Action{act_from: 14%256, act_body: (act_call 128%256, 5, create_tokens)};
+Action{act_from: 14%256, act_body: (act_call 128%256, 1, create_tokens)}];
 Block 4 [
-Action{act_from: 12%256, act_body: (act_call 128%256, 0, transfer_from 14%256 17%256 0)};
-Action{act_from: 12%256, act_body: (act_call 128%256, 0, approve 11%256 0)}];
+Action{act_from: 11%256, act_body: (act_call 128%256, 2, create_tokens)};
+Action{act_from: 12%256, act_body: (act_call 128%256, 6, create_tokens)}];
 Block 5 [
-Action{act_from: 11%256, act_body: (act_call 128%256, 3, create_tokens)};
-Action{act_from: 12%256, act_body: (act_call 128%256, 2, create_tokens)}];
+Action{act_from: 11%256, act_body: (act_call 128%256, 1, create_tokens)};
+Action{act_from: 11%256, act_body: (act_call 128%256, 2, create_tokens)}];
 Block 6 [
-Action{act_from: 11%256, act_body: (act_call 128%256, 0, refund)};
-Action{act_from: 12%256, act_body: (act_call 128%256, 0, refund)}];|}
+Action{act_from: 13%256, act_body: (act_call 128%256, 0, refund)};
+Action{act_from: 12%256, act_body: (act_call 128%256, 0, refund)}];
+Block 7 [
+Action{act_from: 14%256, act_body: (act_call 128%256, 0, refund)};
+Action{act_from: 11%256, act_body: (act_call 128%256, 0, refund)}];|}
 
 Success - found witness satisfying the predicate!
-+++ Failed (as expected) after 13 tests and 0 shrinks. (0 discards)
++++ Failed (as expected) after 42 tests and 0 shrinks. (0 discards)
 *)
 
 Definition can_always_fully_refund (cs : ChainState) :=
@@ -837,8 +860,9 @@ Definition can_always_fully_refund (cs : ChainState) :=
   let contract_balance := env_account_balances cs contract_base_addr in
   match get_contract_state State cs contract_base_addr with
   | Some cstate =>
+    let bat_fund_balance := with_default 0 (FMap.find batFund (balances cstate)) in
     let contract_balance_correct := Z.leb (contract_balance * Z.of_N cstate.(tokenExchangeRate))
-                                          (Z.of_N (total_supply cstate)) in
+                                          (Z.of_N ((total_supply cstate) - bat_fund_balance)) in
       if no_actions_from_contract
       then
         if cstate.(isFinalized)
@@ -851,7 +875,10 @@ Definition can_always_fully_refund (cs : ChainState) :=
     however the ideally it should always be possible to empty the contract balance.
    If not then it would mean that money could get stuck contract implying that some
     funded money may not be refundable.
-   If "contract_balance * exchange_rate <= total_supply" then it should be
+   We know that all accounts except batFund should be able to refund so the amount of balance
+    that we should be able to withdraw is the total number of tokens held by all accounts except
+    for those held by batFund (initial supply).
+   Thus if "contract_balance * exchange_rate <= total_supply - batFund_tokens" then it should be
     possible to withdraw the entire contract balance.
 *)
 (* QuickChick ({{can_always_fully_refund}}). *)
@@ -870,21 +897,19 @@ Action{act_from: 10%256, act_body: (act_transfer 11%256, 10)};
 Action{act_from: 10%256, act_body: (act_transfer 12%256, 7)};
 Action{act_from: 10%256, act_body: (act_transfer 13%256, 6)};
 Action{act_from: 10%256, act_body: (act_transfer 14%256, 10)};
-Action{act_from: 10%256, act_body: (act_transfer 16%256, 2)};
-Action{act_from: 10%256, act_body: (act_transfer 17%256, 2)};
 Action{act_from: 10%256, act_body: (act_deploy 0, transfer 19%256 17)}];
 Block 2 [
-Action{act_from: 17%256, act_body: (act_call 128%256, 0, transfer 13%256 16)};
-Action{act_from: 11%256, act_body: (act_call 128%256, 9, create_tokens)}];
+Action{act_from: 12%256, act_body: (act_call 128%256, 3, create_tokens)};
+Action{act_from: 14%256, act_body: (act_call 128%256, 3, create_tokens)}];
 Block 3 [
-Action{act_from: 16%256, act_body: (act_call 128%256, 1, create_tokens)};
-Action{act_from: 13%256, act_body: (act_call 128%256, 3, create_tokens)}];
+Action{act_from: 13%256, act_body: (act_call 128%256, 2, create_tokens)};
+Action{act_from: 13%256, act_body: (act_call 128%256, 2, create_tokens)}];
 Block 4 [
-Action{act_from: 16%256, act_body: (act_call 128%256, 0, approve 17%256 2)};
-Action{act_from: 14%256, act_body: (act_call 128%256, 8, create_tokens)}];
+Action{act_from: 11%256, act_body: (act_call 128%256, 8, create_tokens)};
+Action{act_from: 13%256, act_body: (act_call 128%256, 2, create_tokens)}];
 Block 5 [
-Action{act_from: 17%256, act_body: (act_call 128%256, 2, create_tokens)};
-Action{act_from: 17%256, act_body: (act_call 128%256, 0, transfer_from 16%256 17%256 0)}];
+Action{act_from: 12%256, act_body: (act_call 128%256, 2, create_tokens)};
+Action{act_from: 11%256, act_body: (act_call 128%256, 2, create_tokens)}];
 Block 6 [
 Action{act_from: 16%256, act_body: (act_call 128%256, 0, finalize)}];|}
 
@@ -892,15 +917,15 @@ Success - found witness satisfying the predicate!
 +++ Failed (as expected) after 6 tests and 0 shrinks. (0 discards)
 *)
 
-Definition can_always_finalize check_setup:=
+Definition can_always_finalize check_setup :=
   let build_init_cb setup :=
-    TraceGens.add_block (lcb_initial AddrSize)
+    TraceGens.add_block empty_chain
     [
-      build_act creator creator (Blockchain.act_transfer person_1 10);
-      build_act creator creator (Blockchain.act_transfer person_2 7);
-      build_act creator creator (Blockchain.act_transfer person_3 6);
-      build_act creator creator (Blockchain.act_transfer person_4 10);
-      build_act creator creator (create_deployment 0 BAT_AltFix.contract setup)
+      build_transfer creator person_1 10;
+      build_transfer creator person_2 7;
+      build_transfer creator person_3 6;
+      build_transfer creator person_4 10;
+      build_deploy creator 0 BATFixed.contract setup
     ] in
   forAll gBATSetup
          (fun setup =>
@@ -918,13 +943,14 @@ Extract Constant defNumTests    => "10000".
 *)
 
 Definition final_is_final :=
-  {token_cb ~~~> is_finalized ===> (fun _ cs => is_finalized cs)}.
+  token_cb ~~~> bool_to_option is_finalized ===>
+    checkForAllStatesInTrace (fun _ cs => is_finalized cs).
 (* Check that once finalized it cannot be undone *)
 (* QuickChick final_is_final. *)
-(* +++ Passed 10000 tests (4648 discards) *)
+(* +++ Passed 10000 tests (4377 discards) *)
 
 Definition can_only_finalize_once :=
-  let chain_gen := (gTokenChain 2) token_cb 7%nat in
+  let chain_gen := gChain in
   let blocks cb := trace_states_step_block cb.(builder_trace) in
   let is_finalize action :=
     match action.(act_body) with
@@ -944,19 +970,21 @@ Definition can_only_finalize_once :=
 (* QuickChick can_only_finalize_once. *)
 (* +++ Passed 10000 tests (0 discards) *)
 
+
 Definition final_implies_total_supply_in_range :=
   let total_supply_in_range cs :=
     match get_contract_state State cs contract_base_addr with
-    | Some state => (tokenMin_ + (initSupply state) <=? (total_supply state)) &&
-                    ((total_supply state) <=? tokenCap_ + (initSupply state))
+    | Some state => (tokenMin_ <=? (total_supply state)) &&
+                    ((total_supply state) <=? tokenCap_)
     | None => false
     end in
-  {token_cb ~~~> is_finalized ===> (fun _ cs => total_supply_in_range cs)}.
+  token_cb ~~~> bool_to_option is_finalized ===>
+    checkForAllStatesInTrace (fun _ cs => total_supply_in_range cs).
 (* Check that once finalized then total supply of tokens is:
     1) at least _tokenMin
     2) no bigger than _tokenCap *)
 (* QuickChick final_implies_total_supply_in_range. *)
-(* +++ Passed 10000 tests (4589 discards) *)
+(* +++ Passed 10000 tests (4234 discards) *)
 
 Definition final_implies_total_supply_constant :=
   let get_satisfying_state trace := last trace empty_state in
@@ -966,34 +994,30 @@ Definition final_implies_total_supply_constant :=
     | None => 0
     end in
   let finalized_total_supply trace := get_total_supply (get_satisfying_state trace) in
-  {token_cb ~~~> is_finalized
-            ===> (fun pre_trace cs => get_total_supply cs =? finalized_total_supply pre_trace)}.
+    token_cb ~~~> bool_to_option is_finalized ===>
+      checkForAllStatesInTrace (fun pre_trace cs => get_total_supply cs =? finalized_total_supply pre_trace).
 (* Check that once finalized then total supply of tokens does not change *)
 (* QuickChick final_implies_total_supply_constant. *)
-(* +++ Passed 10000 tests (4717 discards) *)
+(* +++ Passed 10000 tests (4092 discards) *)
 
 Definition final_implies_contract_balance_is_zero :=
   let contract_balance_empty trace cs := Z.eqb (env_account_balances cs contract_base_addr) 0 in
-  {token_cb ~~~> is_finalized ===> contract_balance_empty}.
+  token_cb ~~~> bool_to_option is_finalized ===> checkForAllStatesInTrace contract_balance_empty.
 (* Check that once finalized then the contract balance is 0 *)
 (* QuickChick final_implies_contract_balance_is_zero. *)
-(* +++ Passed 10000 tests (4675 discards) *)
+(* +++ Passed 10000 tests (4147 discards) *)
 
 
 
 (* -------------------- total_supply tests -------------------- *)
 Definition total_supply_bounds (cs : ChainState) :=
   match get_contract_state State cs contract_base_addr with
-  | Some cstate =>
-    if cstate.(isFinalized)
-    then checker true
-    else checker ((0 <=? (total_supply cstate)) &&
-                 ((total_supply cstate) <=? tokenCap_))
+  | Some cstate => checker (((initSupply cstate) <=? (total_supply cstate)) &&
+                            ((total_supply cstate) <=? tokenCap_))
   | None => checker true
   end.
-(* Check that when the contract is not finalized
-   then total supply of tokens is always
-    1) larger than or equal to 0
+(* Check that total supply of tokens is always
+    1) larger than or equal to the inital supply
     2) less than or equal to the funding cap
 *)
 (* QuickChick ({{total_supply_bounds}}). *)
@@ -1016,13 +1040,15 @@ Definition paid_tokens_modulo_exchange_rate (cs : ChainState) :=
   match get_contract_state State cs contract_base_addr with
   | Some cstate =>
       let paid_tokens := (total_supply cstate) - (initSupply cstate) in
-      if cstate.(isFinalized)
+      if Nat.leb cs.(current_slot) fundingEnd_
       then checker (0 =? N.modulo paid_tokens exchangeRate_)
-      else checker (0 =? N.modulo (total_supply cstate) exchangeRate_)
+      else checker true
   | None => checker true
   end.
 (* We check that the total supply of tokens minus the inital supply
-    is a multiple of exchange rate. *)
+    is a multiple of exchange rate. We have seen that this isn't the
+    case when refunding is allowed, thus we only test this property
+    in the funding period *)
 (* QuickChick ({{paid_tokens_modulo_exchange_rate}}). *)
 (* +++ Passed 10000 tests (0 discards) *)
 
