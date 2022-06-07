@@ -279,7 +279,7 @@ Proof.
     intros. contract_simpl minter_receive minter_init. easy.
 Qed.
 
-Lemma confirm_new_minter_admin_correct {chain ctx addr prev_state next_state} :
+Lemma confirm_new_admin_correct {chain ctx addr prev_state next_state} :
     prev_state.(admin).(pending_admin) = Some addr ->
     minter_receive chain ctx prev_state (Some (ContractAdmin (ConfirmMinterAdmin))) = Some (next_state, []) ->
     next_state.(admin).(pending_admin) = None ->

@@ -322,11 +322,14 @@ Proof.
         + setoid_rewrite FMap.find_add. easy.
 Qed.
 
-Lemma only_minter_can_burn {chain ctx prev_state burnList} :
+Lemma only_minter_can_mint_and_burn {chain ctx prev_state p} :
     (ctx.(ctx_from) =? prev_state.(fa2_admin).(tas_minter))%address = false ->
-    fa2_receive chain ctx prev_state (Some (Tokens (BurnTokens burnList))) = None.
+    fa2_receive chain ctx prev_state (Some (Tokens p)) = None.
 Proof.
-    intros. contract_simpl fa2_receive fa2_init. unfold fail_if_not_minter. rewrite H. reflexivity.
+    intros; 
+    contract_simpl fa2_receive fa2_init;
+    unfold fail_if_not_minter;
+    now rewrite H.
 Qed.
 
 Lemma cant_burn_more_than_supply {chain ctx prev_state owner token_id amount v} :
