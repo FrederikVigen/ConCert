@@ -13,44 +13,6 @@ Set Nonrecursive Elimination Schemes.
 Context {BaseTypes : ChainBase}.
 Open Scope N_scope.
 
-(*TODO: Missing entries in FA2Interface that we have had to build on our own*)
-
-Record operator_param_own := {
-  op_param_owner : Address;
-  op_param_operator : Address;
-  op_param_token_id : token_id;
-}.
-
-Inductive update_operator_own :=
-  | add_operator : operator_param_own -> update_operator_own
-  | remove_operator : operator_param_own -> update_operator_own.
-
-Global Instance operator_param_own_serializable : Serializable operator_param_own :=
-Derive Serializable operator_param_own_rect<Build_operator_param_own>.
-
-Global Instance update_operator_own_serializable : Serializable update_operator_own :=
-Derive Serializable update_operator_own_rect<add_operator, remove_operator>.
-
-Record TransferDestination := mkTransferDestination {
-    to_ : Address;
-    dst_token_id : N;
-    amount : N;
-}.
-
-Record Transfer := mkTransfer {
-    from_ : Address;
-    txs : list TransferDestination;
-}.
-
-MetaCoq Run (make_setters TransferDestination). 
-MetaCoq Run (make_setters Transfer). 
-
-Global Instance TransferDestination_serializable : Serializable TransferDestination :=
-    Derive Serializable TransferDestination_rect<mkTransferDestination>.
-
-Global Instance Transfer_serializable : Serializable Transfer :=
-Derive Serializable Transfer_rect<mkTransfer>.
-
 Record MintBurnTx := mkMintBurnTx {
     mint_burn_owner: Address;
     mint_burn_token_id : token_id;
@@ -99,9 +61,9 @@ Derive Serializable TokenMetadata_rect<mkTokenMetadata>.
 Definition TokenMetaDataStorage := FMap token_id TokenMetadata.
 
 Inductive FA2EntryPoints :=
-| FA2_Transfer (transfers : list Transfer)
+| FA2_Transfer (transfers : list transfer)
 | Balance_of (balanceOf : balance_of_param)
-| Update_operators (updates : list update_operator_own).
+| Update_operators (updates : list update_operator).
 
 Global Instance FA2EntryPoints_serializable : Serializable FA2EntryPoints :=
 Derive Serializable FA2EntryPoints_rect<FA2_Transfer, Balance_of, Update_operators>.

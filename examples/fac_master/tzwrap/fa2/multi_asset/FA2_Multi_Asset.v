@@ -1086,7 +1086,7 @@ Qed.
         
 
 
-Lemma fa2_correct : forall bstate caddr fa2_token_id (trace: ChainTrace empty_state bstate),
+(* Lemma fa2_correct : forall bstate caddr fa2_token_id (trace: ChainTrace empty_state bstate),
     env_contracts bstate caddr = Some (FA2_contract : WeakContract) ->
     exists cstate inc_calls,
         contract_state bstate caddr = Some cstate /\
@@ -1154,7 +1154,7 @@ Proof.
                     ---- admit.
                     ---- rewrite <- E in receive_some. admit.
                 --- destruct_address_eq.
-                    ---- cbn. rewrite E2. cbn in *. apply IH. 
+                    ---- cbn. rewrite E2. cbn in *. apply IH.  *)
                         
   
     

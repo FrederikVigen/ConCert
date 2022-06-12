@@ -8,6 +8,7 @@
 Require Import Blockchain.
 Require Import Containers.
 Require Import FA2InterfaceOwn.
+From ConCert.Examples.FA2 Require Import FA2Interface.
 Require Import ZArith.
 Require Import RecordUpdate.
 Require Import List.
@@ -78,11 +79,11 @@ Definition fail_if_not_minter (ctx : ContractCallContext) (a : TokenAdminStorage
     else None.
 
 (** ** Fail if paused tokens*)
-Definition fail_if_paused_tokens (transfers : list Transfer) (paused : PausedTokensSet) : option unit :=
+Definition fail_if_paused_tokens (transfers : list transfer) (paused : PausedTokensSet) : option unit :=
     fold_left
-    ( fun (acc_opt : option unit) (tx : Transfer) =>
+    ( fun (acc_opt : option unit) (tx : transfer) =>
         do _ <- acc_opt ;
-        fold_left (fun (acc_opt_inner : option unit) (txd : TransferDestination) =>
+        fold_left (fun (acc_opt_inner : option unit) (txd : transfer_destination) =>
             do _ <- acc_opt_inner ;
             match FMap.find txd.(dst_token_id) paused with
             | Some _ => None
