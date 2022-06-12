@@ -3,7 +3,7 @@
     The fees distributed is defined by the percentage set by the admin quorum. The withdrawal can be done either for a single token/xtz or for all of the tokens or xtz's
     This file together with Fees_Lib and Fees_Interface contains the full logic and functionality of the Fees part of the Minter Contract
     The file this file has been translated from can be found here:
-    https://github.com/bender-labs/wrap-tz-contracts/blob/1655949e61b05a1c25cc00dcb8c1da9d91799f31/ligo/minter/fees_lib.mligo
+    https://github.com/bender-labs/wrap-tz-contracts/blob/1655949e61b05a1c25cc00dcb8c1da9d91799f31/ligo/minter/fees.mligo
 *)
 Require Import Storage.
 Require Import Blockchain.

@@ -1,3 +1,10 @@
+(** * The main entrypoint contract of the Minter Contract *)
+(** This file calls all sub parts of the minter contract, also located in this folder.
+    All proofs for the sub parts(Fees, Contract Admin, Signer, SignerOps, Governance, Oracle) of the contracts are located in this file aswell
+    The file this file has been translated from can be found here:
+    https://github.com/bender-labs/wrap-tz-contracts/blob/1655949e61b05a1c25cc00dcb8c1da9d91799f31/ligo/minter/governance.mligo
+*)
+
 Require Import Storage.
 Require Import ZArith.
 Require Import Fees.
@@ -34,11 +41,11 @@ Require Import TokenAdmin.
 Require Import FA2Types.
 
 Section Main.
-
 Context {BaseTypes : ChainBase}.
 Set Nonrecursive Elimination Schemes.
 Open Scope N_scope.
 
+(** ** The Main Entrypoints of the Minter Contract*)
 Inductive EntryPoints :=
     | Fees (fees_entrypoints : WithdrawalEntrypoint)
     | Unwrap (unwrap_entrypoints : UnwrapEntrypoints)
@@ -49,6 +56,7 @@ Inductive EntryPoints :=
     | Signer_Ops (signer_ops_entrypoints : SignerOpsEntrypoint)
 .
 
+(** ** The Class needed for init to be run *)
 Record Setup := {
     quorum_contract : Address;
     meta_data_uri : N;
@@ -57,15 +65,20 @@ Record Setup := {
     fa2_contract : Address
 }.
 
+(* begin hide *)
 Global Instance EntryPoints_serializable : Serializable EntryPoints :=
     Derive Serializable EntryPoints_rect<Fees, Unwrap, ContractAdmin, Governance, Oracle, Signer, Signer_Ops>.
 
 Global Instance Setup_serializable : Serializable Setup :=
     Derive Serializable Setup_rect<Build_Setup>.
 
+(* end hide *)
+
+(** ** Function to fail if the minter is paused *)
 Definition fail_if_paused (s : ContractAdminStorage) : option unit :=
     throwIf (s.(paused)).
 
+(** ** The Main entrypoint function for the whole Minter Contract *)
 Definition main (ctx: ContractCallContext) (p: EntryPoints) (s : State) : option ReturnType :=
     match p with
     | Signer p =>
@@ -97,10 +110,12 @@ Definition main (ctx: ContractCallContext) (p: EntryPoints) (s : State) : option
         signer_ops_main ctx p s
     end.
 
+(** ** Receive function used to connect the main function to the context state*)
 Definition minter_receive (chain : Chain) (ctx : ContractCallContext) (state : State) (msg_opt : option EntryPoints) : option ReturnType :=
     do msg <- msg_opt ;
     main ctx msg state.
 
+(** ** The init function run when initializing or deploying the Minter Contract*)
 Definition minter_init (chain : Chain) (ctx : ContractCallContext) (setup : Setup) : option State :=
     let meta := FMap.update EmptyString (Some setup.(meta_data_uri)) FMap.empty in
     let fungible_tokens := fold_left (
@@ -142,11 +157,19 @@ Definition minter_init (chain : Chain) (ctx : ContractCallContext) (setup : Setu
         storage_metadata := meta
     |}.
 
-(* The minter contract *)
+(** ** The type definition of the minter contract *)
 Definition minter_contract : Contract Setup EntryPoints State :=
     build_contract minter_init minter_receive.
 
-(**----------------- Signer Proofs -----------------**)
+(** * Signer Proofs *)
+(** Here we have all of the Signer proofs, the definition of the contract can be found in the Signer.v and Signer_Interface.v *)
+
+(** ** Functional correctness of minting erc20 functionality *)
+(** This proof states that if mint is mint_receive is returning Some new state, then it should have done the following:
+    a) fees should have incremented by the new amount of fees
+    b1) minting should be sent to the token contract for minting fees and minting new FA2 tokens
+    b2) in case of no fees to be minted then it should not sent a mint call to for the fees to FA2 token
+*)
 Lemma mint_erc20_functionally_correct {chain ctx prev_state next_state erc20Address event_id
     owner amount acts token_address v new_v n feesVal} : 
     minter_receive chain ctx prev_state (Some (Signer 
@@ -204,6 +227,8 @@ Proof.
         rewrite <- H8; now cbn.
 Qed.
 
+(** ** Functional correctness of adding new erc20 token *)
+(** If the minter_receive function returns a new state it should be the case that trying to lookup the new token that was added returns the token_address that was added *)
 Lemma add_erc20_functionally_correct {chain ctx prev_state next_state eth_contract token_address acts ta} : 
     minter_receive chain ctx prev_state (Some (Signer 
         (Add_erc20 {|
@@ -216,6 +241,9 @@ Proof.
     intros. contract_simpl minter_receive minter_init. cbn in *. setoid_rewrite FMap.find_add in H0. easy.
 Qed.
 
+(** ** Functional correctness of minting erc 721 *)
+(** This proof is very similar to the ERC20 proof instead of the fees being distributed in XTZ instead of the actual token itself
+    Therefore there are no cases, all we have to check is that the call to the token contract is made correctly *)
 Lemma mint_erc721_functionally_correct {chain ctx prev_state next_state erc721Address event_id
     owner amount acts token_address v new_v n token_id contract_address } : 
     minter_receive chain ctx prev_state (Some (Signer 
@@ -245,6 +273,8 @@ Proof.
     - unfold get_nft_contract in H10. easy.
 Qed.
 
+(** ** Functional correctness of adding erc721 tokens *)
+(** This proof is the same as the adding of erc20 we are checking that adding a new token results in having that added to the tokens map *)
 Lemma add_erc721_functionally_correct {chain ctx prev_state next_state eth_contract token_contract acts tc} : 
     minter_receive chain ctx prev_state (Some (Signer 
         (Add_erc721 {|
@@ -258,6 +288,7 @@ Proof.
 Qed.
 
 (**----------------- ContractAdmin Proofs -----------------**)
+
 Lemma set_administrator_correct {chain ctx prev_state next_state n} : 
     minter_receive chain ctx prev_state (Some (ContractAdmin (SetAdministrator n))) = Some (next_state, []) ->
     next_state.(admin).(administrator) = n.
