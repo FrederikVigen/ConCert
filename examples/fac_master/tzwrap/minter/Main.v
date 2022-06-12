@@ -2,7 +2,7 @@
 (** This file calls all sub parts of the minter contract, also located in this folder.
     All proofs for the sub parts(Fees, Contract Admin, Signer, SignerOps, Governance, Oracle) of the contracts are located in this file aswell
     The file this file has been translated from can be found here:
-    https://github.com/bender-labs/wrap-tz-contracts/blob/1655949e61b05a1c25cc00dcb8c1da9d91799f31/ligo/minter/governance.mligo
+    https://github.com/bender-labs/wrap-tz-contracts/blob/1655949e61b05a1c25cc00dcb8c1da9d91799f31/ligo/minter/main.mligo
 *)
 
 Require Import Storage.
