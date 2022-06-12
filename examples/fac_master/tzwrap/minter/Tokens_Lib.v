@@ -1,3 +1,8 @@
+(** * Tokens lib *)
+(** This is an implementation of the following file.
+https://github.com/bender-labs/wrap-tz-contracts/blob/master/ligo/minter/tokens_lib.mligo.
+
+*)
 Require Import Ethereum_Lib.
 Require Import Storage.
 Require Import Blockchain.

@@ -1,3 +1,8 @@
+(** * Signer ops *)
+(** This is an implementation of the following file.
+
+https://github.com/bender-labs/wrap-tz-contracts/blob/master/ligo/minter/signerops.mligo.
+*)
 Require Import Signer_Ops_Interface.
 Require Import Storage.
 Require Import Blockchain.

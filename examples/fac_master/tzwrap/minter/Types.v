@@ -1,3 +1,8 @@
+(** * Types *)
+(** This is an implementation of the following file.
+https://github.com/bender-labs/wrap-tz-contracts/blob/master/ligo/minter/types.mligo.
+
+*)
 From Coq Require Import Cyclic31.
 From Coq Require Import String.
 Require Import Containers.

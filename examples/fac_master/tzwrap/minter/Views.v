@@ -1,3 +1,9 @@
+(** * Views *)
+(** This is an implementation of the following file.
+https://github.com/bender-labs/wrap-tz-contracts/blob/master/ligo/minter/views.mligo.
+
+This file is currently not used in our implementation
+*)
 Require Import Blockchain.
 Require Import Storage.
 Require Import ZArith.
