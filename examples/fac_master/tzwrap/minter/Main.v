@@ -2,7 +2,7 @@
 (** This file calls all sub parts of the minter contract, also located in this folder.
     All proofs for the sub parts(Fees, Contract Admin, Signer, SignerOps, Governance, Oracle) of the contracts are located in this file aswell
     The file this file has been translated from can be found here:
-    https://github.com/bender-labs/wrap-tz-contracts/blob/1655949e61b05a1c25cc00dcb8c1da9d91799f31/ligo/minter/governance.mligo
+    https://github.com/bender-labs/wrap-tz-contracts/blob/1655949e61b05a1c25cc00dcb8c1da9d91799f31/ligo/minter/main.mligo
 *)
 
 Require Import Storage.
@@ -232,7 +232,10 @@ Lemma add_erc20_functionally_correct {chain ctx prev_state next_state eth_contra
     FMap.find eth_contract next_state.(assets).(erc20tokens) = Some ta ->
     ta = token_address.
 Proof.
-    intros. contract_simpl minter_receive minter_init. cbn in *. setoid_rewrite FMap.find_add in H0. easy.
+    intros. 
+    contract_simpl minter_receive minter_init. 
+    setoid_rewrite FMap.find_add in H0. 
+    cbn in H0. easy.
 Qed.
 
 (** ** Functional correctness of minting erc 721 *)
@@ -260,9 +263,15 @@ Lemma mint_erc721_functionally_correct {chain ctx prev_state next_state erc721Ad
     |} in
     acts = [act_call token_address 0 (serialize (MintTokens [mintBurnToOwner]))].
 Proof.
-    intros. contract_simpl minter_receive minter_init. cbn in *. split.
-    - setoid_rewrite FMap.find_add in H5. setoid_rewrite H4 in H5. inversion H5. easy.
-    - unfold get_nft_contract in H10. easy.
+    intros. 
+    contract_simpl minter_receive minter_init. 
+    split.
+    - setoid_rewrite FMap.find_add in H5. 
+      setoid_rewrite H4 in H5. 
+      inversion H5. 
+      easy.
+    - unfold get_nft_contract in H10. 
+      easy.
 Qed.
 
 (** ** Functional correctness of adding erc721 tokens *)
@@ -275,7 +284,11 @@ Lemma add_erc721_functionally_correct {chain ctx prev_state next_state eth_contr
     FMap.find eth_contract next_state.(assets).(erc721tokens) = Some tc ->
     tc = token_contract.
 Proof.
-    intros. contract_simpl minter_receive minter_init. cbn in *. setoid_rewrite FMap.find_add in H0. easy.
+    intros. 
+    contract_simpl minter_receive minter_init. 
+    setoid_rewrite FMap.find_add in H0. 
+    cbn in H0. 
+    easy.
 Qed.
 
 (** * Contract Admin Proofs *)
@@ -285,7 +298,9 @@ Lemma set_administrator_correct {chain ctx prev_state next_state n} :
     minter_receive chain ctx prev_state (Some (ContractAdmin (SetAdministrator n))) = Some (next_state, []) ->
     next_state.(admin).(administrator) = n.
 Proof.
-    intros. contract_simpl minter_receive minter_init. easy.
+    intros. 
+    contract_simpl minter_receive minter_init. 
+    easy.
 Qed.
 
 (** ** Set signer correct *)
@@ -293,7 +308,9 @@ Lemma set_signer_correct {chain ctx prev_state next_state n} :
     minter_receive chain ctx prev_state (Some (ContractAdmin (SetSigner n))) = Some (next_state, []) ->
     next_state.(admin).(signer) = n.
 Proof.
-    intros. contract_simpl minter_receive minter_init. easy.
+    intros. 
+    contract_simpl minter_receive minter_init. 
+    easy.
 Qed.
 
 (** ** Set Oracle correct *)
@@ -301,7 +318,9 @@ Lemma set_oracle_correct {chain ctx prev_state next_state n} :
     minter_receive chain ctx prev_state (Some (ContractAdmin (SetOracle n))) = Some (next_state, []) ->
     next_state.(admin).(oracle) = n.
 Proof.
-    intros. contract_simpl minter_receive minter_init. easy.
+    intros. 
+    contract_simpl minter_receive minter_init. 
+    easy.
 Qed.
 
 (** ** Confirm new admin correct *)
@@ -311,9 +330,15 @@ Lemma confirm_new_admin_correct {chain ctx addr prev_state next_state} :
     next_state.(admin).(pending_admin) = None ->
     next_state.(admin).(administrator) = addr.
 Proof.
-    intros. contract_simpl minter_receive minter_init. cbn in *. unfold confirm_new_minter_admin in H3.
-    rewrite H in H3. generalize dependent H3. destruct_address_eq; intros; cbn in *; try easy.
-    rewrite <- e in H3. inversion H3. easy.
+    intros. 
+    contract_simpl minter_receive minter_init. 
+    unfold confirm_new_minter_admin in H3.
+    rewrite H in H3. 
+    generalize dependent H3. 
+    destruct_address_eq; intros; cbn in *; try easy.
+    rewrite <- e in H3. 
+    inversion H3. 
+    easy.
 Qed.
 
 (** ** Pause contract correct *)
@@ -321,7 +346,9 @@ Lemma pause_contract_correct {chain ctx prev_state next_state b} :
     minter_receive chain ctx prev_state (Some (ContractAdmin (PauseContract b))) = Some (next_state, []) ->
     next_state.(admin).(paused) = b.
 Proof.
-    intros. contract_simpl minter_receive minter_init. easy.
+    intros. 
+    contract_simpl minter_receive minter_init.
+    easy.
 Qed.
 
 (** * Fees proofs *)
@@ -345,12 +372,19 @@ Lemma Withdraw_all_tokens_is_functionally_correct {chain ctx prev_state p next_s
         |}
     ))]).
 Proof.
-    intros. contract_simpl minter_receive minter_init. unfold generate_tokens_transfer in H.
-    unfold generate_tx_destinations in H. rewrite H0 in H. cbn in H. rewrite H1 in H. 
-    destruct (amount =? 0) eqn:E in H; cbn in H; inversion H; split; 
+    intros. 
+    contract_simpl minter_receive minter_init.
+    unfold generate_tokens_transfer in H.
+    unfold generate_tx_destinations in H. 
+    rewrite H0 in H. cbn in H. 
+    rewrite H1 in H. 
+    destruct (amount =? 0) eqn:E in H; inversion H; split; 
     try rewrite N.eqb_eq in E; try rewrite E; try easy.
-        + cbn. rewrite E in H1. apply H1. 
-        + unfold token_balance. setoid_rewrite FMap.find_remove. reflexivity.
+        + rewrite E in H1.
+          apply H1. 
+        + unfold token_balance. 
+          setoid_rewrite FMap.find_remove. 
+          reflexivity.
 Qed.
 
 (** ** Withdraw tokens correct *)
@@ -368,11 +402,18 @@ Lemma Withdraw_tokens_is_functionally_correct {chain ctx prev_state p next_state
             |}]
         |}))].
 Proof.
-    intros. contract_simpl minter_receive minter_init. split. 
-    - destruct (token_balance (fees_storage_tokens (fees prev_state)) (ctx_from ctx) (fa2_token p, wtp_token_id p) - wtp_amount p) eqn:E; cbn.
-        + unfold token_balance. setoid_rewrite FMap.find_remove. reflexivity.
-        + unfold token_balance. setoid_rewrite FMap.find_add. reflexivity.
-    - unfold transfer_operation. cbn. reflexivity.
+    intros. 
+    contract_simpl minter_receive minter_init.
+    split. 
+    - destruct (token_balance (fees_storage_tokens (fees prev_state)) (ctx_from ctx) (fa2_token p, wtp_token_id p) - wtp_amount p) eqn:E.
+        + unfold token_balance. 
+          setoid_rewrite FMap.find_remove. 
+          reflexivity.
+        + unfold token_balance. 
+          setoid_rewrite FMap.find_add. 
+          reflexivity.
+    - unfold transfer_operation. 
+      reflexivity.
 Qed.
 
 (** ** Withdraw all xtz correct *)
@@ -383,11 +424,16 @@ Lemma Withdraw_all_xtz_is_functionally_correct {chain ctx prev_state next_state 
     (if amount =? 0 then ops = [] else 
         ops = [act_transfer ctx.(ctx_from) (N_to_amount amount)]). 
 Proof.
-    intros. contract_simpl minter_receive minter_init. 
+    intros. 
+    contract_simpl minter_receive minter_init. 
     destruct (xtz_balance (fees_storage_xtz (fees prev_state)) (ctx_from ctx) =? 0) eqn:E. 
-    - cbn. inversion H2. cbn. rewrite N.eqb_eq in E; try easy.
-    - cbn. destruct (throwIf (address_is_contract (ctx_from ctx))); try easy. inversion H2. cbn.
-      rewrite N.sub_diag. cbn. unfold xtz_balance. setoid_rewrite FMap.find_remove; try easy.
+    - inversion H2.
+      rewrite N.eqb_eq in E; try easy.
+    - destruct (throwIf (address_is_contract (ctx_from ctx))); try easy.
+      inversion H2.
+      rewrite N.sub_diag.
+      unfold xtz_balance.
+      setoid_rewrite FMap.find_remove; try easy.
 Qed.
 
 (** ** Withdraw xtz correct *)
@@ -398,20 +444,29 @@ Lemma Withdraw_xtz_is_functionally_correct {chain ctx prev_state next_state ops 
     (if amount =? 0 then ops = [] else 
         ops = [act_transfer ctx.(ctx_from) (N_to_amount n)]). 
 Proof.
-    intros. contract_simpl minter_receive minter_init.
+    intros. 
+    contract_simpl minter_receive minter_init.
     split.
     - destruct (xtz_balance (fees_storage_xtz (fees prev_state)) (ctx_from ctx)) eqn:E. 
-        + cbn in H2. inversion H2. cbn. apply E.
-        + cbn in *. destruct (throwIf (address_is_contract (ctx_from ctx))); 
-          try easy. inversion H2. cbn. unfold xtz_balance. destruct n0 eqn:E2.
-            * cbn. setoid_rewrite FMap.find_add. reflexivity.
-            * destruct (Pos.sub_mask p0 p1); cbn.
-                -- setoid_rewrite FMap.find_remove. reflexivity.
-                -- setoid_rewrite FMap.find_add.  reflexivity.
-                -- setoid_rewrite FMap.find_remove. reflexivity.
-    - destruct (xtz_balance (fees_storage_xtz (fees prev_state)) (ctx_from ctx) =? 0) eqn:E in H2.
-        + inversion H2. now rewrite E.
-        + destruct (throwIf (address_is_contract (ctx_from ctx))); try easy. inversion H2. now rewrite E.
+        + cbn in H2. 
+          inversion H2. 
+          apply E.
+        + cbn in H2. destruct (throwIf (address_is_contract (ctx_from ctx))); 
+          try easy. inversion H2. cbn.
+          unfold xtz_balance. 
+          destruct n0 eqn:E2.
+            * setoid_rewrite FMap.find_add. 
+              reflexivity.
+            * destruct (Pos.sub_mask p0 p1).
+                -- setoid_rewrite FMap.find_remove. 
+                   reflexivity.
+                -- setoid_rewrite FMap.find_add.  
+                   reflexivity.
+                -- setoid_rewrite FMap.find_remove. 
+                   reflexivity.
+    - destruct (xtz_balance (fees_storage_xtz (fees prev_state)) (ctx_from ctx) =? 0) eqn:E in H2;
+        try destruct (throwIf (address_is_contract (ctx_from ctx))); try easy;
+        inversion H2; now rewrite E.
 Qed.
 
 (** * Unwrap proofs *)
@@ -448,17 +503,27 @@ Lemma unwrap_erc20_functionally_correct {chain ctx prev_state next_state eth_add
     then acts = [burn]
     else acts = [burn] ++ [act_call (fst token_address) 0 (serialize (MintTokens [mintTokensParams]))])).
 Proof.
-    intros. contract_simpl minter_receive minter_init. unfold unwrap_erc20 in H. cbn in *.
-    setoid_rewrite H0 in H. split.
+    intros. 
+    contract_simpl minter_receive minter_init. 
+    unfold unwrap_erc20 in H. cbn.
+    setoid_rewrite H0 in H. 
+    split; intros; cbn in H.
     (* Fees ledger correct *)
-    - intros. cbn in *. unfold Fees_Lib.token_balance in H. rewrite H3 in H. destruct (token_address) eqn:E2 in H.
-    destruct (Fees_Lib.check_fees_high_enough fees_amount (Fees_Lib.bps_of amount (erc20_unwrapping_fees (governance prev_state)))) in H; try easy.
-    inversion H. rewrite <- H6 in H4. cbn in H4. rewrite E2 in H4. setoid_rewrite FMap.find_add in H4.
-    inversion H2. easy.
+    - unfold Fees_Lib.token_balance in H.
+      rewrite H3 in H. 
+      destruct (token_address) eqn:E2 in H.
+      destruct (Fees_Lib.check_fees_high_enough fees_amount (Fees_Lib.bps_of amount (erc20_unwrapping_fees (governance prev_state)))) in H; try easy.
+      inversion H.
+      rewrite <- H6 in H4. cbn in H4.
+      rewrite E2 in H4. 
+      setoid_rewrite FMap.find_add in H4.
+      inversion H2. 
+      easy.
     (* Acts correct *)
-    - intros. destruct (token_address) eqn:E2 in H. destruct (Fees_Lib.check_fees_high_enough fees_amount (Fees_Lib.bps_of amount (erc20_unwrapping_fees (governance prev_state)))) in H; try easy. 
-    destruct fees_amount eqn:E3; cbn in *; 
-    try inversion H; rewrite E2; easy. 
+    - destruct (token_address) eqn:E2 in H.
+      destruct (Fees_Lib.check_fees_high_enough fees_amount (Fees_Lib.bps_of amount (erc20_unwrapping_fees (governance prev_state)))) in H; try easy. 
+      destruct fees_amount eqn:E3; cbn in *; 
+      try inversion H; rewrite E2; easy. 
 Qed.
 
 (** ** Unwrap ERC721 correct *)
@@ -483,10 +548,14 @@ Lemma unwrap_erc721_functionally_correct {chain ctx prev_state next_state eth_ad
     acts = [burn]
     ).
 Proof.
-    intros. contract_simpl minter_receive minter_init. cbn in *.
-    setoid_rewrite FMap.find_add. split. 
-    - intros. rewrite H in H4. inversion H4. easy.
-    - easy.
+    intros. 
+    contract_simpl minter_receive minter_init. cbn.
+    setoid_rewrite FMap.find_add. 
+    split; try easy.
+    intros. 
+    rewrite H in H4. 
+    inversion H4.
+    easy.
 Qed.
 
 (** ** Unwrap Safety Properties *)
@@ -500,9 +569,18 @@ Lemma unwrap_erc20_fees_below_min {chain ctx prev_state eth_address amount fees_
         up_erc20_destination := erc20_dest
     |})))) = None.
 Proof.
-    intros. contract_simpl minter_receive minter_init. destruct (fail_if_paused (admin prev_state)); try easy.
-    destruct (fail_if_amount ctx); try easy. unfold unwrap_erc20. cbn in *. destruct (get_fa2_token_id eth_address (erc20tokens (assets prev_state))); try easy.
-    destruct t. unfold Fees_Lib.check_fees_high_enough. unfold throwIf. rewrite <- N.ltb_lt in H. rewrite H. reflexivity.
+    intros. 
+    contract_simpl minter_receive minter_init. 
+    destruct (fail_if_paused (admin prev_state)); try easy.
+    destruct (fail_if_amount ctx); try easy. 
+    unfold unwrap_erc20. cbn. 
+    destruct (get_fa2_token_id eth_address (erc20tokens (assets prev_state))); try easy.
+    destruct t. 
+    unfold Fees_Lib.check_fees_high_enough. 
+    unfold throwIf. 
+    rewrite <- N.ltb_lt in H. 
+    rewrite H. 
+    reflexivity.
 Qed.
     
 (** ** Unwrap ERC721 fails if fees are below min *)
@@ -514,8 +592,14 @@ Lemma unwrap_erc721_fees_below_min {chain ctx prev_state eth_address erc721_dest
         up_erc721_destination := erc721_dest
     |})))) = None.
 Proof.
-    intros. contract_simpl minter_receive minter_init. destruct (fail_if_paused (admin prev_state)); try easy.
-    unfold Fees_Lib.check_nft_fees_high_enough. unfold throwIf. rewrite <- N.ltb_lt in H. rewrite H. reflexivity.
+    intros. 
+    contract_simpl minter_receive minter_init.
+    destruct (fail_if_paused (admin prev_state)); try easy.
+    unfold Fees_Lib.check_nft_fees_high_enough.
+    unfold throwIf.
+    rewrite <- N.ltb_lt in H.
+    rewrite H. 
+    reflexivity.
 Qed.
 
 
@@ -527,8 +611,10 @@ Lemma signer_ops_functionally_correct {chain ctx prev_state next_state signer ad
     minter_receive chain ctx prev_state (Some (Signer_Ops (set_payment_address {| sparam_signer:= signer; payment_address:=addr |}))) = Some(next_state, []) ->
     FMap.find signer next_state.(fees).(fees_storage_signers) = Some addr.
 Proof.
-    intros. contract_simpl minter_receive minter_init. cbn.
-    rewrite FMap.find_add. reflexivity.
+    intros. 
+    contract_simpl minter_receive minter_init. cbn.
+    rewrite FMap.find_add. 
+    reflexivity.
 Qed.
 
 End Main. 
