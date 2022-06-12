@@ -322,11 +322,14 @@ Proof.
         + setoid_rewrite FMap.find_add. easy.
 Qed.
 
-Lemma only_minter_can_burn {chain ctx prev_state burnList} :
+Lemma only_minter_can_mint_and_burn {chain ctx prev_state p} :
     (ctx.(ctx_from) =? prev_state.(fa2_admin).(tas_minter))%address = false ->
-    fa2_receive chain ctx prev_state (Some (Tokens (BurnTokens burnList))) = None.
+    fa2_receive chain ctx prev_state (Some (Tokens p)) = None.
 Proof.
-    intros. contract_simpl fa2_receive fa2_init. unfold fail_if_not_minter. rewrite H. reflexivity.
+    intros; 
+    contract_simpl fa2_receive fa2_init;
+    unfold fail_if_not_minter;
+    now rewrite H.
 Qed.
 
 Lemma cant_burn_more_than_supply {chain ctx prev_state owner token_id amount v} :
@@ -691,20 +694,13 @@ Proof.
     unfold mint_update_total_supply in IHtxs. rewrite update_assoc in IHtxs.
 *)
     
-
-Lemma some_is_not_none {A} : forall (x : option A) (y : A),
-    x = Some y ->
-    x <> None.
-Proof.
-    easy.
-Qed.
-
 Lemma mint_app_is_some {prev_state a txs ts} :
     mint_update_total_supply (a :: txs) (token_total_supply (fa2_assets prev_state)) = Some ts ->
     exists t, mint_update_total_supply (txs) (token_total_supply (fa2_assets prev_state)) = Some t.
 Proof.
-    intros. apply some_is_not_none in H. unfold mint_update_total_supply in H.
-    apply update_app_not_none in H. unfold not in H.
+    intros. assert (mint_update_total_supply (a :: txs) (token_total_supply (fa2_assets prev_state)) <> None). easy. 
+    unfold mint_update_total_supply in H.
+    apply update_app_not_none in H0. unfold not in H0.
     destruct (fold_left
     (fun (supplies_opt : option TokenTotalSupply) (tx : MintBurnTx) =>
      do supplies <- supplies_opt;
@@ -714,7 +710,7 @@ Proof.
           (Some (ts + mint_burn_amount tx)) supplies)) txs
     (Some (token_total_supply (fa2_assets prev_state)))) eqn:E.
     - easy. 
-    - apply H in E. easy.
+    - apply H0 in E. easy.
 Qed. 
 
 Lemma mint_app_is_some_supply {prev_state txs a t0 fa2_token_id new_supply} :
@@ -1089,7 +1085,7 @@ Proof.
 Qed.
         
 
-(*
+
 Lemma fa2_correct : forall bstate caddr fa2_token_id (trace: ChainTrace empty_state bstate),
     env_contracts bstate caddr = Some (FA2_contract : WeakContract) ->
     exists cstate inc_calls,
@@ -1130,9 +1126,9 @@ Proof.
         destruct (FMap.find fa2_token_id (token_total_supply (fa2_assets new_state))) eqn:E2;
         destruct (FMap.find fa2_token_id (token_metadata (fa2_assets new_state))) eqn:E3; try easy.
             * cbn. apply create_new_token_means_zero_supply in receive_some as H.
-                instantiate (Callfacts := fun _ _ prev_state _ => (
+                instantiate (CallFacts := fun _ _ prev_state _ => (
                     FMap.find fa2_token_id prev_state.(fa2_assets).(token_metadata) = None ->
-                    sumZ (fun callInfo => mint_or_burn fa2_token_id callInfo.(call_msg)) inc_calls = 0%Z
+                    sumZ (fun callInfo => mint_or_burn fa2_token_id callInfo.(call_msg)) prev_inc_calls = 0%Z
                 )).
                 apply N.eqb_eq in E. subst. destruct (FMap.find tm_token_id (token_total_supply (fa2_assets prev_state))) eqn: E4;
                 destruct (FMap.find tm_token_id (token_metadata (fa2_assets prev_state))) eqn: E5;
@@ -1158,7 +1154,7 @@ Proof.
                     ---- admit.
                     ---- rewrite <- E in receive_some. admit.
                 --- destruct_address_eq.
-                    ---- cbn. rewrite E2. cbn in *. apply IH.    *)
+                    ---- cbn. rewrite E2. cbn in *. apply IH. 
                         
   
     
