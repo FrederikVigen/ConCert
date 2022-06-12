@@ -34,7 +34,7 @@ From ConCert.Examples.FA2 Require Import FA2Interface.
 From ConCert.Execution Require Import InterContractCommunication.
 From ConCert.Utils Require Import Extras.
 Require Import FA2_Multi_Asset.
-Require Import FA2InterfaceOwn.
+Require Import FA2Interface_Wrap.
 Import ListNotations.
 Require Import Fees_Lib.
 Require Import TokenAdmin.
@@ -162,14 +162,9 @@ Definition minter_contract : Contract Setup EntryPoints State :=
     build_contract minter_init minter_receive.
 
 (** * Signer Proofs *)
-(** Here we have all of the Signer proofs, the definition of the contract can be found in the Signer.v and Signer_Interface.v *)
+(** All of the Signer proofs are in this section, the definition of the contract part can be found in the Signer.v and Signer_Interface.v *)
 
 (** ** Functional correctness of minting erc20 functionality *)
-(** This proof states that if mint is mint_receive is returning Some new state, then it should have done the following:
-    a) fees should have incremented by the new amount of fees
-    b1) minting should be sent to the token contract for minting fees and minting new FA2 tokens
-    b2) in case of no fees to be minted then it should not sent a mint call to for the fees to FA2 token
-*)
 Lemma mint_erc20_functionally_correct {chain ctx prev_state next_state erc20Address event_id
     owner amount acts token_address v new_v n feesVal} : 
     minter_receive chain ctx prev_state (Some (Signer 
@@ -228,7 +223,6 @@ Proof.
 Qed.
 
 (** ** Functional correctness of adding new erc20 token *)
-(** If the minter_receive function returns a new state it should be the case that trying to lookup the new token that was added returns the token_address that was added *)
 Lemma add_erc20_functionally_correct {chain ctx prev_state next_state eth_contract token_address acts ta} : 
     minter_receive chain ctx prev_state (Some (Signer 
         (Add_erc20 {|
@@ -242,8 +236,6 @@ Proof.
 Qed.
 
 (** ** Functional correctness of minting erc 721 *)
-(** This proof is very similar to the ERC20 proof instead of the fees being distributed in XTZ instead of the actual token itself
-    Therefore there are no cases, all we have to check is that the call to the token contract is made correctly *)
 Lemma mint_erc721_functionally_correct {chain ctx prev_state next_state erc721Address event_id
     owner amount acts token_address v new_v n token_id contract_address } : 
     minter_receive chain ctx prev_state (Some (Signer 
@@ -274,7 +266,6 @@ Proof.
 Qed.
 
 (** ** Functional correctness of adding erc721 tokens *)
-(** This proof is the same as the adding of erc20 we are checking that adding a new token results in having that added to the tokens map *)
 Lemma add_erc721_functionally_correct {chain ctx prev_state next_state eth_contract token_contract acts tc} : 
     minter_receive chain ctx prev_state (Some (Signer 
         (Add_erc721 {|
@@ -287,8 +278,9 @@ Proof.
     intros. contract_simpl minter_receive minter_init. cbn in *. setoid_rewrite FMap.find_add in H0. easy.
 Qed.
 
-(**----------------- ContractAdmin Proofs -----------------**)
-
+(** * Contract Admin Proofs *)
+(** All of the contract admin proofs, the definitions can be found in ContractAdmin.v *)
+(** ** Set administrator correct *)
 Lemma set_administrator_correct {chain ctx prev_state next_state n} : 
     minter_receive chain ctx prev_state (Some (ContractAdmin (SetAdministrator n))) = Some (next_state, []) ->
     next_state.(admin).(administrator) = n.
@@ -296,6 +288,7 @@ Proof.
     intros. contract_simpl minter_receive minter_init. easy.
 Qed.
 
+(** ** Set signer correct *)
 Lemma set_signer_correct {chain ctx prev_state next_state n} : 
     minter_receive chain ctx prev_state (Some (ContractAdmin (SetSigner n))) = Some (next_state, []) ->
     next_state.(admin).(signer) = n.
@@ -303,6 +296,7 @@ Proof.
     intros. contract_simpl minter_receive minter_init. easy.
 Qed.
 
+(** ** Set Oracle correct *)
 Lemma set_oracle_correct {chain ctx prev_state next_state n} : 
     minter_receive chain ctx prev_state (Some (ContractAdmin (SetOracle n))) = Some (next_state, []) ->
     next_state.(admin).(oracle) = n.
@@ -310,6 +304,7 @@ Proof.
     intros. contract_simpl minter_receive minter_init. easy.
 Qed.
 
+(** ** Confirm new admin correct *)
 Lemma confirm_new_admin_correct {chain ctx addr prev_state next_state} :
     prev_state.(admin).(pending_admin) = Some addr ->
     minter_receive chain ctx prev_state (Some (ContractAdmin (ConfirmMinterAdmin))) = Some (next_state, []) ->
@@ -321,6 +316,7 @@ Proof.
     rewrite <- e in H3. inversion H3. easy.
 Qed.
 
+(** ** Pause contract correct *)
 Lemma pause_contract_correct {chain ctx prev_state next_state b} :
     minter_receive chain ctx prev_state (Some (ContractAdmin (PauseContract b))) = Some (next_state, []) ->
     next_state.(admin).(paused) = b.
@@ -328,7 +324,10 @@ Proof.
     intros. contract_simpl minter_receive minter_init. easy.
 Qed.
 
-(**----------------- Fees Proofs -----------------**)
+(** * Fees proofs *)
+(** All of the fees proofs, the definition of the functionality can be found in the Fees_Interface.v Fees_Lib.v Fees.v*)
+
+(** ** Withdraw all tokens correct *)
 Lemma Withdraw_all_tokens_is_functionally_correct {chain ctx prev_state p next_state ops token_id amount} :
     minter_receive chain ctx prev_state (Some (Fees (Withdraw_all_tokens p))) = Some (next_state, ops) ->
     p.(wtp_tokens) = [token_id] ->
@@ -354,6 +353,7 @@ Proof.
         + unfold token_balance. setoid_rewrite FMap.find_remove. reflexivity.
 Qed.
 
+(** ** Withdraw tokens correct *)
 Lemma Withdraw_tokens_is_functionally_correct {chain ctx prev_state p next_state ops amount} :
     minter_receive chain ctx prev_state (Some (Fees (Withdraw_token p))) = Some (next_state, ops) ->
     token_balance prev_state.(fees).(fees_storage_tokens) ctx.(ctx_from) (p.(fa2_token), p.(wtp_token_id)) = amount ->
@@ -375,6 +375,7 @@ Proof.
     - unfold transfer_operation. cbn. reflexivity.
 Qed.
 
+(** ** Withdraw all xtz correct *)
 Lemma Withdraw_all_xtz_is_functionally_correct {chain ctx prev_state next_state ops amount} :
     minter_receive chain ctx prev_state (Some (Fees (Withdraw_all_xtz))) = Some (next_state, ops) ->
     xtz_balance prev_state.(fees).(fees_storage_xtz) ctx.(ctx_from) = amount ->
@@ -389,6 +390,7 @@ Proof.
       rewrite N.sub_diag. cbn. unfold xtz_balance. setoid_rewrite FMap.find_remove; try easy.
 Qed.
 
+(** ** Withdraw xtz correct *)
 Lemma Withdraw_xtz_is_functionally_correct {chain ctx prev_state next_state ops amount n} :
     minter_receive chain ctx prev_state (Some (Fees (Withdraw_xtz n))) = Some (next_state, ops) ->
     xtz_balance prev_state.(fees).(fees_storage_xtz) ctx.(ctx_from) = amount ->
@@ -412,9 +414,10 @@ Proof.
         + destruct (throwIf (address_is_contract (ctx_from ctx))); try easy. inversion H2. now rewrite E.
 Qed.
 
-(**----------------- Unwrap Proofs -----------------**)
+(** * Unwrap proofs *)
+(** The definition of functionality can be found in the Unwrap.v file*)
 
-(* Fees ledger should be updated correctly and correct burn and mint calls should be made *)
+(** ** Unwrap ERC20 correct *)
 Lemma unwrap_erc20_functionally_correct {chain ctx prev_state next_state eth_address amount fees_amount erc20_dest acts token_address v new_v} :
     (minter_receive chain ctx prev_state (Some (Unwrap (unwrap_erc20_entrypoint ({|
         erc_20 := eth_address;
@@ -458,7 +461,7 @@ Proof.
     try inversion H; rewrite E2; easy. 
 Qed.
 
-(* Fees ledger should be updated correctly and correct burn and mint calls should be made *)
+(** ** Unwrap ERC721 correct *)
 Lemma unwrap_erc721_functionally_correct {chain ctx prev_state next_state eth_address erc721_dest acts token_id token_addr v new_v} :
     minter_receive chain ctx prev_state (Some (Unwrap (unwrap_erc721_entrypoint ({|
         erc_721 := eth_address;
@@ -486,8 +489,8 @@ Proof.
     - easy.
 Qed.
 
-(* UNWRAP SAFETY PROPERTIES *)
-(* If fees are below required. Unwrap should fail *)
+(** ** Unwrap Safety Properties *)
+(** ** Unwrap ERC20 fails if fees are below min *)
 Lemma unwrap_erc20_fees_below_min {chain ctx prev_state eth_address amount fees_amount erc20_dest} :
     fees_amount < Fees_Lib.bps_of amount prev_state.(governance).(erc20_unwrapping_fees) ->
     minter_receive chain ctx prev_state (Some (Unwrap (unwrap_erc20_entrypoint ({|
@@ -502,7 +505,7 @@ Proof.
     destruct t. unfold Fees_Lib.check_fees_high_enough. unfold throwIf. rewrite <- N.ltb_lt in H. rewrite H. reflexivity.
 Qed.
     
-(* If fees are below required. Unwrap should fail *)
+(** ** Unwrap ERC721 fails if fees are below min *)
 Lemma unwrap_erc721_fees_below_min {chain ctx prev_state eth_address erc721_dest token_id} :
     Z.to_N ctx.(ctx_amount) < prev_state.(governance).(erc721_unwrapping_fees) ->
     minter_receive chain ctx prev_state (Some (Unwrap (unwrap_erc721_entrypoint ({|
@@ -516,9 +519,10 @@ Proof.
 Qed.
 
 
-(**----------------- SignerOps Proofs -----------------**)
+(** * SignerOps Proofs *)
+(** The definition of functionality can be found in the SignerOps.v and SignerOps_Interface.v files*)
 
-(* The new signer gets updated correctly *)
+(** ** Signer Ops Correct *)
 Lemma signer_ops_functionally_correct {chain ctx prev_state next_state signer addr} :
     minter_receive chain ctx prev_state (Some (Signer_Ops (set_payment_address {| sparam_signer:= signer; payment_address:=addr |}))) = Some(next_state, []) ->
     FMap.find signer next_state.(fees).(fees_storage_signers) = Some addr.

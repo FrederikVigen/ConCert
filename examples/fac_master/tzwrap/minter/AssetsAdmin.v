@@ -7,7 +7,7 @@
 
 Require Import Tokens_Lib.
 Require Import Blockchain.
-Require Import FA2InterfaceOwn.
+Require Import FA2Interface_Wrap.
 Require Import ZArith.
 Require Import Storage.
 Require Import List.
