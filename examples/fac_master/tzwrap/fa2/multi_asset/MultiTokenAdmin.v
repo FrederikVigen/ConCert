@@ -17,6 +17,7 @@ Require Import Monads.
 Import ListNotations.
 
 Open Scope N_scope.
+(** * Implementation *)
 
 Section MultiTokenAdmin.
 Context {BaseTypes : ChainBase}.
