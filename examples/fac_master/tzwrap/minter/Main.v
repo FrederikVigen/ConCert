@@ -258,6 +258,7 @@ Proof.
 Qed.
 
 (**----------------- ContractAdmin Proofs -----------------**)
+(** ** Set administrator correct *)
 Lemma set_administrator_correct {chain ctx prev_state next_state n} : 
     minter_receive chain ctx prev_state (Some (ContractAdmin (SetAdministrator n))) = Some (next_state, []) ->
     next_state.(admin).(administrator) = n.
@@ -265,6 +266,7 @@ Proof.
     intros. contract_simpl minter_receive minter_init. easy.
 Qed.
 
+(** ** Set signer correct *)
 Lemma set_signer_correct {chain ctx prev_state next_state n} : 
     minter_receive chain ctx prev_state (Some (ContractAdmin (SetSigner n))) = Some (next_state, []) ->
     next_state.(admin).(signer) = n.
@@ -272,6 +274,7 @@ Proof.
     intros. contract_simpl minter_receive minter_init. easy.
 Qed.
 
+(** ** Set Oracle correct *)
 Lemma set_oracle_correct {chain ctx prev_state next_state n} : 
     minter_receive chain ctx prev_state (Some (ContractAdmin (SetOracle n))) = Some (next_state, []) ->
     next_state.(admin).(oracle) = n.
@@ -279,6 +282,7 @@ Proof.
     intros. contract_simpl minter_receive minter_init. easy.
 Qed.
 
+(** ** Confirm new admin correct *)
 Lemma confirm_new_admin_correct {chain ctx addr prev_state next_state} :
     prev_state.(admin).(pending_admin) = Some addr ->
     minter_receive chain ctx prev_state (Some (ContractAdmin (ConfirmMinterAdmin))) = Some (next_state, []) ->
@@ -290,6 +294,7 @@ Proof.
     rewrite <- e in H3. inversion H3. easy.
 Qed.
 
+(** ** Pause contract correct *)
 Lemma pause_contract_correct {chain ctx prev_state next_state b} :
     minter_receive chain ctx prev_state (Some (ContractAdmin (PauseContract b))) = Some (next_state, []) ->
     next_state.(admin).(paused) = b.
@@ -298,6 +303,7 @@ Proof.
 Qed.
 
 (**----------------- Fees Proofs -----------------**)
+(** ** Withdraw all tokens correct *)
 Lemma Withdraw_all_tokens_is_functionally_correct {chain ctx prev_state p next_state ops token_id amount} :
     minter_receive chain ctx prev_state (Some (Fees (Withdraw_all_tokens p))) = Some (next_state, ops) ->
     p.(wtp_tokens) = [token_id] ->
@@ -323,6 +329,7 @@ Proof.
         + unfold token_balance. setoid_rewrite FMap.find_remove. reflexivity.
 Qed.
 
+(** ** Withdraw tokens correct *)
 Lemma Withdraw_tokens_is_functionally_correct {chain ctx prev_state p next_state ops amount} :
     minter_receive chain ctx prev_state (Some (Fees (Withdraw_token p))) = Some (next_state, ops) ->
     token_balance prev_state.(fees).(fees_storage_tokens) ctx.(ctx_from) (p.(fa2_token), p.(wtp_token_id)) = amount ->
@@ -344,6 +351,7 @@ Proof.
     - unfold transfer_operation. cbn. reflexivity.
 Qed.
 
+(** ** Withdraw all xtz correct *)
 Lemma Withdraw_all_xtz_is_functionally_correct {chain ctx prev_state next_state ops amount} :
     minter_receive chain ctx prev_state (Some (Fees (Withdraw_all_xtz))) = Some (next_state, ops) ->
     xtz_balance prev_state.(fees).(fees_storage_xtz) ctx.(ctx_from) = amount ->
@@ -358,6 +366,7 @@ Proof.
       rewrite N.sub_diag. cbn. unfold xtz_balance. setoid_rewrite FMap.find_remove; try easy.
 Qed.
 
+(** ** Withdraw xtz correct *)
 Lemma Withdraw_xtz_is_functionally_correct {chain ctx prev_state next_state ops amount n} :
     minter_receive chain ctx prev_state (Some (Fees (Withdraw_xtz n))) = Some (next_state, ops) ->
     xtz_balance prev_state.(fees).(fees_storage_xtz) ctx.(ctx_from) = amount ->
@@ -383,7 +392,7 @@ Qed.
 
 (**----------------- Unwrap Proofs -----------------**)
 
-(* Fees ledger should be updated correctly and correct burn and mint calls should be made *)
+(** ** Unwrap ERC20 correct *)
 Lemma unwrap_erc20_functionally_correct {chain ctx prev_state next_state eth_address amount fees_amount erc20_dest acts token_address v new_v} :
     (minter_receive chain ctx prev_state (Some (Unwrap (unwrap_erc20_entrypoint ({|
         erc_20 := eth_address;
@@ -427,7 +436,7 @@ Proof.
     try inversion H; rewrite E2; easy. 
 Qed.
 
-(* Fees ledger should be updated correctly and correct burn and mint calls should be made *)
+(** ** Unwrap ERC721 correct *)
 Lemma unwrap_erc721_functionally_correct {chain ctx prev_state next_state eth_address erc721_dest acts token_id token_addr v new_v} :
     minter_receive chain ctx prev_state (Some (Unwrap (unwrap_erc721_entrypoint ({|
         erc_721 := eth_address;
@@ -455,8 +464,8 @@ Proof.
     - easy.
 Qed.
 
-(* UNWRAP SAFETY PROPERTIES *)
-(* If fees are below required. Unwrap should fail *)
+(** ** Unwrap Safety Properties *)
+(** ** Unwrap ERC20 fails if fees are below min *)
 Lemma unwrap_erc20_fees_below_min {chain ctx prev_state eth_address amount fees_amount erc20_dest} :
     fees_amount < Fees_Lib.bps_of amount prev_state.(governance).(erc20_unwrapping_fees) ->
     minter_receive chain ctx prev_state (Some (Unwrap (unwrap_erc20_entrypoint ({|
@@ -471,7 +480,7 @@ Proof.
     destruct t. unfold Fees_Lib.check_fees_high_enough. unfold throwIf. rewrite <- N.ltb_lt in H. rewrite H. reflexivity.
 Qed.
     
-(* If fees are below required. Unwrap should fail *)
+(** ** Unwrap ERC721 fails if fees are below min *)
 Lemma unwrap_erc721_fees_below_min {chain ctx prev_state eth_address erc721_dest token_id} :
     Z.to_N ctx.(ctx_amount) < prev_state.(governance).(erc721_unwrapping_fees) ->
     minter_receive chain ctx prev_state (Some (Unwrap (unwrap_erc721_entrypoint ({|
@@ -487,7 +496,7 @@ Qed.
 
 (**----------------- SignerOps Proofs -----------------**)
 
-(* The new signer gets updated correctly *)
+(** ** Signer Ops Correct *)
 Lemma signer_ops_functionally_correct {chain ctx prev_state next_state signer addr} :
     minter_receive chain ctx prev_state (Some (Signer_Ops (set_payment_address {| sparam_signer:= signer; payment_address:=addr |}))) = Some(next_state, []) ->
     FMap.find signer next_state.(fees).(fees_storage_signers) = Some addr.
