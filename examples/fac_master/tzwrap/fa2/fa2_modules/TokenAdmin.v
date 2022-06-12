@@ -1,3 +1,10 @@
+(** * Token Admin part of FA2Tokens contract*)
+(** This file contains an implementation of 
+    https://github.com/bender-labs/wrap-tz-contracts/blob/1655949e61b05a1c25cc00dcb8c1da9d91799f31/ligo/fa2/fa2_modules/token_admin.mligo
+    
+    This file, when used by the FA2Tokens contract, gives functionality to the admin
+    for changing admins, the accepted minter address, confirming the admin and pausing tokens. 
+*)
 Require Import Blockchain.
 Require Import Containers.
 Require Import FA2InterfaceOwn.
@@ -12,6 +19,7 @@ Section TokenAdmin.
 Set Nonrecursive Elimination Schemes.
 Context {BaseTypes : ChainBase}.
 
+(** ** Types for keeping state *)
 Definition PausedTokensSet : Type := FMap N unit.
 
 Record TokenAdminStorage := {
@@ -21,15 +29,19 @@ Record TokenAdminStorage := {
     tas_minter : Address
 }.
 
+(* begin hide*)
 Global Instance TokenAdminStorage_serializable : Serializable TokenAdminStorage :=
 Derive Serializable TokenAdminStorage_rect<Build_TokenAdminStorage>.
 
 
 MetaCoq Run (make_setters TokenAdminStorage).
+(* end hide *)
 
+(** ** Set admin *)
 Definition set_admin (new_admin : Address) (s : TokenAdminStorage) :=
     s<| tas_pending_admin := Some new_admin |>.
 
+(** ** Confirm admin *)
 Definition confirm_new_admin (ctx : ContractCallContext) (s : TokenAdminStorage) : option TokenAdminStorage :=
     match s.(tas_pending_admin) with
     | None => None
@@ -41,6 +53,7 @@ Definition confirm_new_admin (ctx : ContractCallContext) (s : TokenAdminStorage)
             None
     end.
 
+(** ** Pause one or more tokens *)
 Definition pause (tokens : list PauseParam) (s : TokenAdminStorage) :=
     let new_paused := fold_left
         (fun (paused_set : PausedTokensSet) (t : PauseParam) =>
@@ -52,16 +65,19 @@ Definition pause (tokens : list PauseParam) (s : TokenAdminStorage) :=
         tokens s.(tas_paused) in
     s<| tas_paused := new_paused |>.
 
+(** ** Fail if not admin *)    
 Definition fail_if_not_admin (ctx : ContractCallContext) (a : TokenAdminStorage) : option TokenAdminStorage :=
     if address_eqb ctx.(ctx_from) a.(tas_admin)
     then Some a
     else None.
 
+(** ** Fail if not minter *)
 Definition fail_if_not_minter (ctx : ContractCallContext) (a : TokenAdminStorage) : option TokenAdminStorage :=
     if address_eqb ctx.(ctx_from) a.(tas_minter)
     then Some a
     else None.
 
+(** ** Fail if paused tokens*)
 Definition fail_if_paused_tokens (transfers : list Transfer) (paused : PausedTokensSet) : option unit :=
     fold_left
     ( fun (acc_opt : option unit) (tx : Transfer) =>
@@ -75,6 +91,7 @@ Definition fail_if_paused_tokens (transfers : list Transfer) (paused : PausedTok
         ) tx.(txs) (Some tt)
     ) transfers (Some tt). 
 
+(** ** Fail if paused *)
 Definition fail_if_paused (a : TokenAdminStorage) (param : FA2EntryPoints) :=
     match param with
     | Balance_of _ => Some tt
@@ -82,6 +99,7 @@ Definition fail_if_paused (a : TokenAdminStorage) (param : FA2EntryPoints) :=
     | FA2_Transfer transfer => fail_if_paused_tokens transfer a.(tas_paused)
     end.
 
+(** ** Token Admin main method*)
 Definition token_admin (ctx : ContractCallContext) (param : TokenAdmin) (s : TokenAdminStorage) : option (TokenAdminStorage * (list ActionBody)) :=
     match param with
     | Set_admin new_admin =>
