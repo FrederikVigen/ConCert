@@ -27,7 +27,7 @@ From ConCert.Examples.FA2 Require Import FA2Interface.
 From ConCert.Execution Require Import InterContractCommunication.
 From ConCert.Utils Require Import Extras.
 Require Import FA2_Multi_Asset.
-Require Import FA2InterfaceOwn.
+Require Import FA2Interface_Wrap.
 Import ListNotations.
 Require Import Fees_Lib.
 Require Import TokenAdmin.

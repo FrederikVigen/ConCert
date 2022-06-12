@@ -16,7 +16,7 @@ Require Import Monads.
 From ConCert.Utils Require Import RecordUpdate.
 From ConCert.Examples Require Import FA2Interface.
 From ConCert.Execution Require Import Containers.
-Require Import FA2InterfaceOwn.
+Require Import FA2Interface_Wrap.
 Require Import Extras.
 Require Import List.
 Import ListNotations.

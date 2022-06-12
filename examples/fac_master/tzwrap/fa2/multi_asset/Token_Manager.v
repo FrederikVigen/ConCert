@@ -1,4 +1,4 @@
-Require Import FA2InterfaceOwn.
+Require Import FA2Interface_Wrap.
 Require Import FA2_Multi_Token.
 Require Import FA2Types.
 Require Import List.

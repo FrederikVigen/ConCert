@@ -1,7 +1,7 @@
 Require Import FA2_Permissions_Descriptor.
 Require Import Blockchain.
 From ConCert.Examples.FA2 Require Import FA2Interface.
-Require Import FA2InterfaceOwn.
+Require Import FA2Interface_Wrap.
 Require Import Containers.
 Require Import Monads.
 Require Import Containers.
