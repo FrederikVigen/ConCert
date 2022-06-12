@@ -13,13 +13,13 @@ Context {BaseTypes : ChainBase}.
 
 Definition OperatorStorage := FMap (Address * (Address * token_id)) unit.
 
-Definition update_operators (update : update_operator_own) (storage : OperatorStorage) : OperatorStorage :=
+Definition update_operators (update : update_operator) (storage : OperatorStorage) : OperatorStorage :=
     match update with
     | add_operator op => FMap.update (op.(op_param_owner), (op.(op_param_operator), op.(op_param_token_id))) (Some tt) storage
     | remove_operator op => FMap.remove (op.(op_param_owner), (op.(op_param_operator), op.(op_param_token_id))) storage
     end.
 
-Definition validate_update_operators_by_owner (update : update_operator_own) (updater : Address) : option unit :=
+Definition validate_update_operators_by_owner (update : update_operator) (updater : Address) : option unit :=
     let op := match update with 
     | add_operator op => op
     | remove_operator op => op 
@@ -27,9 +27,9 @@ Definition validate_update_operators_by_owner (update : update_operator_own) (up
     in
     if address_eqb op.(op_param_owner) updater then Some tt else None.
 
-Definition fa2_update_operators (ctx : ContractCallContext) (updates : list update_operator_own) (storage : OperatorStorage) : option OperatorStorage :=
+Definition fa2_update_operators (ctx : ContractCallContext) (updates : list update_operator) (storage : OperatorStorage) : option OperatorStorage :=
     let updater := ctx.(ctx_from) in
-    let process_update := fun (ops_opt : option OperatorStorage) (update : update_operator_own) =>
+    let process_update := fun (ops_opt : option OperatorStorage) (update : update_operator) =>
         do ops <- ops_opt ;
         do _ <- validate_update_operators_by_owner update updater ;
         Some (update_operators update ops)
@@ -56,11 +56,11 @@ Definition default_operator_validator : OperatorValidator :=
     else do _ <- FMap.find (owner, (operator, token_id)) ops_storage;
     Some tt.
 
-Definition validate_operator (ctx: ContractCallContext) (tx_policy: OperatorTransferPolicy) (transfers: list Transfer) (ops_storage : OperatorStorage)  : option unit :=
+Definition validate_operator (ctx: ContractCallContext) (tx_policy: OperatorTransferPolicy) (transfers: list transfer) (ops_storage : OperatorStorage)  : option unit :=
     do validator <- make_operator_validator tx_policy ;
-    fold_left (fun (acc_opt : option unit) (tx: Transfer) => 
+    fold_left (fun (acc_opt : option unit) (tx: transfer) => 
         do _ <- acc_opt ;
-        fold_left (fun (acc_opt_inner : option unit) (dst : TransferDestination) =>
+        fold_left (fun (acc_opt_inner : option unit) (dst : transfer_destination) =>
             do _ <- acc_opt_inner ;
             do _ <- validator tx.(from_) ctx.(ctx_from) dst.(dst_token_id) ops_storage ;
             Some tt 

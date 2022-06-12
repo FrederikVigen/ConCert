@@ -45,7 +45,7 @@ Definition withdraw_xtz (ctx : ContractCallContext) (a : option N) (s : XTZLedge
         else FMap.update ctx.(ctx_from) (Some (available - value)) s
         in Some ([op], new_d).
 
-Definition tx_result : Type := list TransferDestination * TokenLedger.
+Definition tx_result : Type := list transfer_destination * TokenLedger.
 
 Definition generate_tx_destinations (ctx: ContractCallContext) (p : WithdrawTokensParam) (ledger: TokenLedger) : tx_result := 
     fold_left (fun (acc : tx_result) (token_id : N) => 
@@ -53,7 +53,7 @@ Definition generate_tx_destinations (ctx: ContractCallContext) (p : WithdrawToke
         let key := (p.(wtp_fa2_tokens), token_id) in
         let available := token_balance ledger ctx.(ctx_from) key in
         if available =? 0 then acc
-        else let new_dst : TransferDestination := {|
+        else let new_dst : transfer_destination := {|
             to_ := ctx.(ctx_from);
             dst_token_id := token_id;
             amount := available;
@@ -62,8 +62,8 @@ Definition generate_tx_destinations (ctx: ContractCallContext) (p : WithdrawToke
         ((new_dst :: dsts), new_ledger) 
     ) p.(wtp_tokens) ([], ledger).
 
-Definition transfer_operation (fa2 from: Address) (dests : list TransferDestination): ActionBody :=
-    let tx : Transfer := {|
+Definition transfer_operation (fa2 from: Address) (dests : list transfer_destination): ActionBody :=
+    let tx : transfer := {|
         from_ := from;
         txs := dests
     |} in
@@ -81,7 +81,7 @@ Definition generate_token_transfer (ctx : ContractCallContext) (p : WithdrawToke
     let key := (p.(fa2_token), p.(wtp_token_id)) in
     let available := token_balance ledger ctx.(ctx_from) key in
     do n <- sub available p.(wtp_amount);
-    let destination : TransferDestination := {|
+    let destination : transfer_destination := {|
         to_ := ctx.(ctx_from);
         dst_token_id := p.(wtp_token_id);
         amount := p.(wtp_amount);

@@ -42,10 +42,10 @@ Definition dec_balance (owner: Address) (token_id : token_id) (amt : N) (ledger 
     then FMap.remove key ledger
     else FMap.update key (Some new_bal) ledger).
 
-Definition transfer (ctx : ContractCallContext) (transfers : list Transfer) (validate_op : OperatorValidator) (storage : MultiTokenStorage) : option Ledger :=
-  let make_transfer := fun (l_opt : option Ledger) (tx : Transfer) =>
+Definition transfer (ctx : ContractCallContext) (transfers : list transfer) (validate_op : OperatorValidator) (storage : MultiTokenStorage) : option Ledger :=
+  let make_transfer := fun (l_opt : option Ledger) (tx : transfer) =>
     do l <- l_opt ;
-    fold_left (fun (ll_opt : option Ledger) (dst : TransferDestination) =>
+    fold_left (fun (ll_opt : option Ledger) (dst : transfer_destination) =>
       do ll <- ll_opt ;
       do _ <- FMap.find dst.(dst_token_id) storage.(token_metadata) ;
       do _ <- validate_op tx.(from_) ctx.(ctx_from) dst.(dst_token_id) storage.(operators) ;
