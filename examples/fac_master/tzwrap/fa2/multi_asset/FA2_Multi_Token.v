@@ -1,3 +1,8 @@
+(** * FA2 Multi Token*)
+(** This file contains the implementation of the file: 
+https://github.com/bender-labs/wrap-tz-contracts/blob/1655949e61b05a1c25cc00dcb8c1da9d91799f31/ligo/fa2/multi_asset/fa2_multi_token.mligo
+It contains methods for changing the balances of token accounts holding wrapped assets, mainly through transfers.
+*)
 Require Import ZArith.
 Require Import Blockchain.
 From ConCert.Examples Require Import FA2Interface.
@@ -19,13 +24,14 @@ Context {BaseTypes : ChainBase}.
 
 Open Scope N_scope.
 
+(** ** Get Balance Amount *)
 Definition get_balance_amt (key : (Address * N)) (ledger : Ledger) : N :=
     let bal_opt := FMap.find key ledger in
     match bal_opt with
     | None => 0
     | Some b => b
     end.
-    
+(** ** Increment Balance *)    
 Definition inc_balance (owner: Address) (token_id : token_id) (amt : N) (ledger : Ledger) : Ledger :=
     let key := (owner, token_id) in 
     let bal := get_balance_amt key ledger in 
@@ -34,6 +40,7 @@ Definition inc_balance (owner: Address) (token_id : token_id) (amt : N) (ledger 
     then FMap.remove key ledger
     else FMap.update key (Some updated_bal) ledger.
 
+(** ** Decrement Balance *)
 Definition dec_balance (owner: Address) (token_id : token_id) (amt : N) (ledger : Ledger) : option Ledger :=
     let key := (owner, token_id) in
     let bal := get_balance_amt key ledger in
@@ -42,6 +49,7 @@ Definition dec_balance (owner: Address) (token_id : token_id) (amt : N) (ledger 
     then FMap.remove key ledger
     else FMap.update key (Some new_bal) ledger).
 
+(** ** Transfer *)
 Definition transfer (ctx : ContractCallContext) (transfers : list transfer) (validate_op : OperatorValidator) (storage : MultiTokenStorage) : option Ledger :=
   let make_transfer := fun (l_opt : option Ledger) (tx : transfer) =>
     do l <- l_opt ;
@@ -55,6 +63,7 @@ Definition transfer (ctx : ContractCallContext) (transfers : list transfer) (val
   in
   fold_left make_transfer transfers (Some storage.(ledger)).
 
+(** ** Get Balance *)
 Definition get_balance (p : balance_of_param) (ledger : Ledger) (tokens : TokenMetaDataStorage) : option ActionBody :=
   let to_balance := fun (acc_opt : option (list balance_of_response)) (r : balance_of_request) =>
     do acc <- acc_opt ;
@@ -68,6 +77,7 @@ Definition get_balance (p : balance_of_param) (ledger : Ledger) (tokens : TokenM
   do responses <- responses_opt ;
   Some (act_call p.(bal_callback) 0 (serialize responses)).
 
+(** ** Main method of Multi Token *)
 Definition fa2_main (ctx : ContractCallContext) (param : FA2EntryPoints) (storage : MultiTokenStorage) : option (MultiTokenStorage * (list ActionBody)) :=
   match param with 
   | FA2_Transfer txs => 
