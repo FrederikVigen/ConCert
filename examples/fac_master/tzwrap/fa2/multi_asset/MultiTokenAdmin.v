@@ -1,12 +1,9 @@
 (** * Multi Token Admin *)
-(** This is an implementation of the following file.
+(** This file contains the implementation of 
+https://github.com/bender-labs/wrap-tz-contracts/blob/1655949e61b05a1c25cc00dcb8c1da9d91799f31/ligo/fa2/multi_asset/multi_token_admin.mligo
 
-https://github.com/bender-labs/wrap-tz-contracts/blob/master/ligo/fa2/multi_asset/MultiTokenAdmin.mligo.
-
-Entrypoints for creating tokens and managing the contract
-
+It contains functionality available to the admin to either update the deployment of the contract or create a new token to be wrapped. 
 *)
-
 Require Import ZArith.
 Require Import Blockchain.
 Require Import Containers.
@@ -37,7 +34,7 @@ Definition create_token (metadata : token_metadata) (storage : MultiTokenStorage
         Some (storage<|mts_token_metadata := meta|><|token_total_supply := supply|>)
     end.
 
-(** ** Main entry point *)
+(** ** Main method for MultiTokenAdmin*)
 Definition multi_token_admin_main (ctx : ContractCallContext) (p : MultiTokenAdmin) (s: MultiAssetStorage) : option Return := 
     match p with
     | Token_admin p =>
