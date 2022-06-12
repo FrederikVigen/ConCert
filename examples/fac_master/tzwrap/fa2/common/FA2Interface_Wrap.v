@@ -61,23 +61,30 @@ Global Instance TokenAdmin_serializable : Serializable TokenAdmin :=
 Derive Serializable TokenAdmin_rect<Set_admin, Confirm_admin, Pause, Set_minter>.
 (* end hide *)
 
+(** ** Maps for holding metadata*)
 Definition ContractMetadata := FMap string N.
 
 Definition TokenMetaDataStorage := FMap token_id token_metadata.
 
+(** ** Standard endpoints for FA2*)
 Inductive FA2EntryPoints :=
 | FA2_Transfer (transfers : list transfer)
 | Balance_of (balanceOf : balance_of_param)
 | Update_operators (updates : list update_operator).
 
+(* begin hide *)
 Global Instance FA2EntryPoints_serializable : Serializable FA2EntryPoints :=
 Derive Serializable FA2EntryPoints_rect<FA2_Transfer, Balance_of, Update_operators>.
+(* end hide *)
 
+(** ** Endpoints for MultiTokenAdmin*)
 Inductive MultiTokenAdmin := 
 | Token_admin (tokenAdmin : TokenAdmin)
 | Create_token (tokenMetaData : token_metadata).
 
+(* begin hide *)
 Global Instance MultiTokenAdmin_serializable : Serializable MultiTokenAdmin :=
 Derive Serializable MultiTokenAdmin_rect<Token_admin, Create_token>.
+(* end hide *)
 
 End FA2Interface_Wrap.
