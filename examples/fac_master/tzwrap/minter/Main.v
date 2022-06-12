@@ -204,7 +204,6 @@ Proof.
         rewrite <- H8; now cbn.
 Qed.
 
-(** ** Add ERC20 correct *)
 Lemma add_erc20_functionally_correct {chain ctx prev_state next_state eth_contract token_address acts ta} : 
     minter_receive chain ctx prev_state (Some (Signer 
         (Add_erc20 {|
@@ -217,7 +216,6 @@ Proof.
     intros. contract_simpl minter_receive minter_init. cbn in *. setoid_rewrite FMap.find_add in H0. easy.
 Qed.
 
-(** ** Mint ERC721 correct *)
 Lemma mint_erc721_functionally_correct {chain ctx prev_state next_state erc721Address event_id
     owner amount acts token_address v new_v n token_id contract_address } : 
     minter_receive chain ctx prev_state (Some (Signer 
@@ -247,7 +245,6 @@ Proof.
     - unfold get_nft_contract in H10. easy.
 Qed.
 
-(** ** Add ERC721 correct *)
 Lemma add_erc721_functionally_correct {chain ctx prev_state next_state eth_contract token_contract acts tc} : 
     minter_receive chain ctx prev_state (Some (Signer 
         (Add_erc721 {|
