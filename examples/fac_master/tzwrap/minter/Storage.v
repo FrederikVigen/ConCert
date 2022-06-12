@@ -1,3 +1,10 @@
+(** * Storage *)
+(** This is an implementation of the following file.
+
+https://github.com/bender-labs/wrap-tz-contracts/blob/master/ligo/minter/tokens_lib.mligo.
+Contains types used to represent the state of the Minter.
+
+*)
 Require Import Blockchain.
 Require Import Ethereum_Lib.
 Require Import Types.
@@ -77,8 +84,9 @@ Record State :=
         fees : FeesStorage;
         storage_metadata : MetaData }.
 
+(* begin hide *)
 Global Instance State_serializable : Serializable State :=
-        Derive Serializable State_rect<mkStorage>.
+Derive Serializable State_rect<mkStorage>.
 
 MetaCoq Run (make_setters ContractAdminStorage).
 MetaCoq Run (make_setters AssetsStorage).
@@ -86,6 +94,7 @@ MetaCoq Run (make_setters FeesShare).
 MetaCoq Run (make_setters GovernanceStorage).
 MetaCoq Run (make_setters FeesStorage).
 MetaCoq Run (make_setters State).
+(* end hide *)
 
 Definition ReturnType : Type := (State * list ActionBody).
 

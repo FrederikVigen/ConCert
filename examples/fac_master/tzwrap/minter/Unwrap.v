@@ -1,3 +1,8 @@
+(** * Unwrap endpoints *)
+(** This is an implementation of the following file.
+https://github.com/bender-labs/wrap-tz-contracts/blob/master/ligo/minter/unwrap.mligo.
+
+*)
 Require Import Tokens_Lib.
 Require Import Fees_Lib.
 Require Import Ethereum_Lib.
@@ -12,6 +17,7 @@ From ConCert.Execution Require Import Serializable.
 Import ListNotations.
 From Coq Require Import ZArith.
 
+(** * Types *)
 Section Unwrap.
 Context {BaseTypes : ChainBase}.
 Set Nonrecursive Elimination Schemes.
@@ -36,6 +42,7 @@ Inductive UnwrapEntrypoints :=
     | unwrap_erc20_entrypoint (unwrap_erc20_params : UnwrapERC20Parameters)
     | unwrap_erc721_entrypoint (unwrap_erc721_params : UnwrapERC721Parameters).
 
+(* begin hide *)
 Global Instance UnwrapERC20Parameters_serializable : Serializable UnwrapERC20Parameters :=
     Derive Serializable UnwrapERC20Parameters_rect<mkUnwrapERC20Parameters>.
 
@@ -44,7 +51,10 @@ Global Instance UnwrapERC721Parameters_serializable : Serializable UnwrapERC721P
 
 Global Instance UnwrapEntrypoints_serializable : Serializable UnwrapEntrypoints :=
     Derive Serializable UnwrapEntrypoints_rect<unwrap_erc20_entrypoint, unwrap_erc721_entrypoint>.
+(* end hide *)
 
+(** * Implementation *)
+(** ** Unwrap ERC20 *)
 Definition unwrap_erc20 (ctx : ContractCallContext) (p : UnwrapERC20Parameters) (s : State) : option ReturnType :=
     let governance := s.(governance) in
     let assets := s.(assets) in
@@ -87,6 +97,7 @@ Definition unwrap_erc20 (ctx : ContractCallContext) (p : UnwrapERC20Parameters) 
     | None => None
     end.
 
+(** ** Unwrap ERC721 *)
 Definition unwrap_erc721 (ctx : ContractCallContext) (p: UnwrapERC721Parameters) (s: State) : option ReturnType :=
     let governance := s.(governance) in
     let assets := s.(assets) in
@@ -117,6 +128,7 @@ Definition unwrap_erc721 (ctx : ContractCallContext) (p: UnwrapERC721Parameters)
     | None => None
     end.
 
+(** ** Main entrypoint *)
 Definition unwrap_main (ctx : ContractCallContext) (p : UnwrapEntrypoints) (s : State) : option ReturnType :=
     match p with
     | unwrap_erc20_entrypoint p => 
