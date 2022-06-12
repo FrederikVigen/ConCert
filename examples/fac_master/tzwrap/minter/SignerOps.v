@@ -14,7 +14,7 @@ Require Import Containers.
 Section SignerOps.
 Context {BaseTypes : ChainBase}.
 
-
+(** ** Set Signer Payment Address entrypoint  *)
 Definition signer_ops_main (ctx : ContractCallContext) (ep : SignerOpsEntrypoint) (s : State) : option ReturnType :=
     match ep with 
     | set_payment_address p => 

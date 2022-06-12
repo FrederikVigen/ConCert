@@ -1,3 +1,10 @@
+(** * Signer Interface *)
+(** This is an implementation of the following file.
+https://github.com/bender-labs/wrap-tz-contracts/blob/master/ligo/minter/signer_interface.mligo.
+
+Interface for signer
+
+*)
 Require Import Blockchain.
 Require Import Ethereum_Lib.
 Require Import Types.
@@ -8,33 +15,38 @@ Section Signer_Interface.
 Set Nonrecursive Elimination Schemes.
 Context {BaseTypes : ChainBase}.
 
+(** ** Mint ERC20 parameters *)
 Record MintErc20Parameters :=
     mkMintErc20Parameters { erc20 : EthAddress ;
             event_id_erc20 : EthEventId ;
             owner_erc20 : Address ;
             amount_erc20 : N}.
 
+(** ** Add ERC20 parameters *)
 Record AddErc20Parameters := 
     mkAddErc20Parameters { eth_contract_erc20 : EthAddress ;
             token_address : TokenAddress}.
 
+(** ** Add ERC721 parameters *)
 Record AddErc721Parameters := 
     mkAddErc721Parameters {eth_contract_erc721 : EthAddress ;
             token_contract : Address}.
 
+(** ** Mint ERC721 parameters *)
 Record MintErc721Parameters :=
     mkMintErc721Parameters { erc721 : EthAddress ;
             event_id_erc721 : EthEventId ;
             owner_erc721 : Address ;
             token_id_erc721 : N}.
 
+(** ** Type for signer entrypoints *)
 Inductive SignerEntrypoints : Type :=
 | Mint_erc20 (mint_erc20_parameters : MintErc20Parameters)
 | Add_erc20 (add_erc20_parameters : AddErc20Parameters)
 | Mint_erc721 (mint_erc721_parameters : MintErc721Parameters)
 | Add_erc721 (add_erc721_parameters : AddErc721Parameters).
 
-
+(* begin hide *)
 Global Instance MintErc20Parameters_serializable : Serializable MintErc20Parameters :=
     Derive Serializable MintErc20Parameters_rect<mkMintErc20Parameters>.
 
@@ -49,5 +61,6 @@ Global Instance MintErc721Parameters_serializable : Serializable MintErc721Param
 
 Global Instance SignerEntrypoints_serializable : Serializable SignerEntrypoints :=
     Derive Serializable SignerEntrypoints_rect<Mint_erc20, Add_erc20, Mint_erc721, Add_erc721>.
+(* end hide *)
 
 End Signer_Interface.
