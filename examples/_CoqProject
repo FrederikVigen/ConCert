@@ -137,7 +137,7 @@ fac_master/piggybank/PiggyBank.v
 fac_master/tzwrap/crypto/Crypto.v
 
 -R fac_master/tzwrap/fa2 Concert.Examples.Tzwrap.fa2
-fac_master/tzwrap/fa2/common/FA2InterfaceOwn.v
+fac_master/tzwrap/fa2/common/FA2Interface_Wrap.v
 fac_master/tzwrap/fa2/common/lib/FA2_Operator_Lib.v
 fac_master/tzwrap/fa2/common/FA2_Permissions_Descriptor.v
 fac_master/tzwrap/fa2/fa2_modules/TokenAdmin.v

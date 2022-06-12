@@ -1,4 +1,4 @@
-Require Import FA2InterfaceOwn.
+Require Import FA2Interface_Wrap.
 Require Import Containers.
 Require Import ZArith.
 Require Import Blockchain.
@@ -24,7 +24,7 @@ Record MultiTokenStorage :=   {
         ledger : Ledger ;
         operators : OperatorStorage ; 
         token_total_supply : TokenTotalSupply ;
-        token_metadata : TokenMetaDataStorage
+        mts_token_metadata : TokenMetaDataStorage
     }.
 
 Global Instance MultiTokenStorage_serializable : Serializable MultiTokenStorage :=

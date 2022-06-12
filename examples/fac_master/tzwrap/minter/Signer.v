@@ -13,7 +13,7 @@ Import ListNotations.
 Require Import RecordUpdate.
 Require Import Serializable.
 From ConCert.Execution Require Import Monads.
-Require Import FA2InterfaceOwn.
+Require Import FA2Interface_Wrap.
 From ConCert.Examples Require Import FA2Interface.
 
 Section Signer.

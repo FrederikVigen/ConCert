@@ -1,7 +1,7 @@
 Require Import ZArith.
 Require Import Blockchain.
 From ConCert.Examples Require Import FA2Interface.
-Require Import FA2InterfaceOwn.
+Require Import FA2Interface_Wrap.
 Require Import Fees_Lib.
 Require Import FA2Types.
 Require Import Containers.
@@ -47,7 +47,7 @@ Definition transfer (ctx : ContractCallContext) (transfers : list transfer) (val
     do l <- l_opt ;
     fold_left (fun (ll_opt : option Ledger) (dst : transfer_destination) =>
       do ll <- ll_opt ;
-      do _ <- FMap.find dst.(dst_token_id) storage.(token_metadata) ;
+      do _ <- FMap.find dst.(dst_token_id) storage.(mts_token_metadata) ;
       do _ <- validate_op tx.(from_) ctx.(ctx_from) dst.(dst_token_id) storage.(operators) ;
       do lll <- dec_balance tx.(from_) dst.(dst_token_id) dst.(amount) ll ;
       Some (inc_balance dst.(to_) dst.(dst_token_id) dst.(amount) lll)
@@ -75,7 +75,7 @@ Definition fa2_main (ctx : ContractCallContext) (param : FA2EntryPoints) (storag
     let new_storage := storage<|ledger := new_ledger|> in
     Some (new_storage, [])
   | Balance_of p => 
-    do op <- get_balance p storage.(ledger) storage.(token_metadata) ;
+    do op <- get_balance p storage.(ledger) storage.(mts_token_metadata) ;
     Some (storage, [op])
   | Update_operators updates =>
     do new_ops <- fa2_update_operators ctx updates storage.(operators) ;
