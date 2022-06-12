@@ -1,3 +1,10 @@
+(** * The main entrypoint contract of the Minter Contract *)
+(** This file calls all sub parts of the minter contract, also located in this folder.
+    All proofs for the sub parts(Fees, Contract Admin, Signer, SignerOps, Governance, Oracle) of the contracts are located in this file aswell
+    The file this file has been translated from can be found here:
+    https://github.com/bender-labs/wrap-tz-contracts/blob/1655949e61b05a1c25cc00dcb8c1da9d91799f31/ligo/minter/governance.mligo
+*)
+
 Require Import Storage.
 Require Import ZArith.
 Require Import Fees.
@@ -34,11 +41,11 @@ Require Import TokenAdmin.
 Require Import FA2Types.
 
 Section Main.
-
 Context {BaseTypes : ChainBase}.
 Set Nonrecursive Elimination Schemes.
 Open Scope N_scope.
 
+(** ** The Main Entrypoints of the Minter Contract*)
 Inductive EntryPoints :=
     | Fees (fees_entrypoints : WithdrawalEntrypoint)
     | Unwrap (unwrap_entrypoints : UnwrapEntrypoints)
@@ -49,6 +56,7 @@ Inductive EntryPoints :=
     | Signer_Ops (signer_ops_entrypoints : SignerOpsEntrypoint)
 .
 
+(** ** The Class needed for init to be run *)
 Record Setup := {
     quorum_contract : Address;
     meta_data_uri : N;
@@ -57,15 +65,20 @@ Record Setup := {
     fa2_contract : Address
 }.
 
+(* begin hide *)
 Global Instance EntryPoints_serializable : Serializable EntryPoints :=
     Derive Serializable EntryPoints_rect<Fees, Unwrap, ContractAdmin, Governance, Oracle, Signer, Signer_Ops>.
 
 Global Instance Setup_serializable : Serializable Setup :=
     Derive Serializable Setup_rect<Build_Setup>.
 
+(* end hide *)
+
+(** ** Function to fail if the minter is paused *)
 Definition fail_if_paused (s : ContractAdminStorage) : option unit :=
     throwIf (s.(paused)).
 
+(** ** The Main entrypoint function for the whole Minter Contract *)
 Definition main (ctx: ContractCallContext) (p: EntryPoints) (s : State) : option ReturnType :=
     match p with
     | Signer p =>
@@ -97,10 +110,12 @@ Definition main (ctx: ContractCallContext) (p: EntryPoints) (s : State) : option
         signer_ops_main ctx p s
     end.
 
+(** ** Receive function used to connect the main function to the context state*)
 Definition minter_receive (chain : Chain) (ctx : ContractCallContext) (state : State) (msg_opt : option EntryPoints) : option ReturnType :=
     do msg <- msg_opt ;
     main ctx msg state.
 
+(** ** The init function run when initializing or deploying the Minter Contract*)
 Definition minter_init (chain : Chain) (ctx : ContractCallContext) (setup : Setup) : option State :=
     let meta := FMap.update EmptyString (Some setup.(meta_data_uri)) FMap.empty in
     let fungible_tokens := fold_left (
@@ -142,11 +157,14 @@ Definition minter_init (chain : Chain) (ctx : ContractCallContext) (setup : Setu
         storage_metadata := meta
     |}.
 
-(* The minter contract *)
+(** ** The type definition of the minter contract *)
 Definition minter_contract : Contract Setup EntryPoints State :=
     build_contract minter_init minter_receive.
 
-(**----------------- Signer Proofs -----------------**)
+(** * Signer Proofs *)
+(** All of the Signer proofs are in this section, the definition of the contract part can be found in the Signer.v and Signer_Interface.v *)
+
+(** ** Functional correctness of minting erc20 functionality *)
 Lemma mint_erc20_functionally_correct {chain ctx prev_state next_state erc20Address event_id
     owner amount acts token_address v new_v n feesVal} : 
     minter_receive chain ctx prev_state (Some (Signer 
@@ -204,6 +222,7 @@ Proof.
         rewrite <- H8; now cbn.
 Qed.
 
+(** ** Functional correctness of adding new erc20 token *)
 Lemma add_erc20_functionally_correct {chain ctx prev_state next_state eth_contract token_address acts ta} : 
     minter_receive chain ctx prev_state (Some (Signer 
         (Add_erc20 {|
@@ -216,6 +235,7 @@ Proof.
     intros. contract_simpl minter_receive minter_init. cbn in *. setoid_rewrite FMap.find_add in H0. easy.
 Qed.
 
+(** ** Functional correctness of minting erc 721 *)
 Lemma mint_erc721_functionally_correct {chain ctx prev_state next_state erc721Address event_id
     owner amount acts token_address v new_v n token_id contract_address } : 
     minter_receive chain ctx prev_state (Some (Signer 
@@ -245,6 +265,7 @@ Proof.
     - unfold get_nft_contract in H10. easy.
 Qed.
 
+(** ** Functional correctness of adding erc721 tokens *)
 Lemma add_erc721_functionally_correct {chain ctx prev_state next_state eth_contract token_contract acts tc} : 
     minter_receive chain ctx prev_state (Some (Signer 
         (Add_erc721 {|
@@ -257,7 +278,8 @@ Proof.
     intros. contract_simpl minter_receive minter_init. cbn in *. setoid_rewrite FMap.find_add in H0. easy.
 Qed.
 
-(**----------------- ContractAdmin Proofs -----------------**)
+(** * Contract Admin Proofs *)
+(** All of the contract admin proofs, the definitions can be found in ContractAdmin.v *)
 (** ** Set administrator correct *)
 Lemma set_administrator_correct {chain ctx prev_state next_state n} : 
     minter_receive chain ctx prev_state (Some (ContractAdmin (SetAdministrator n))) = Some (next_state, []) ->
@@ -302,7 +324,9 @@ Proof.
     intros. contract_simpl minter_receive minter_init. easy.
 Qed.
 
-(**----------------- Fees Proofs -----------------**)
+(** * Fees proofs *)
+(** All of the fees proofs, the definition of the functionality can be found in the Fees_Interface.v Fees_Lib.v Fees.v*)
+
 (** ** Withdraw all tokens correct *)
 Lemma Withdraw_all_tokens_is_functionally_correct {chain ctx prev_state p next_state ops token_id amount} :
     minter_receive chain ctx prev_state (Some (Fees (Withdraw_all_tokens p))) = Some (next_state, ops) ->
@@ -390,7 +414,8 @@ Proof.
         + destruct (throwIf (address_is_contract (ctx_from ctx))); try easy. inversion H2. now rewrite E.
 Qed.
 
-(**----------------- Unwrap Proofs -----------------**)
+(** * Unwrap proofs *)
+(** The definition of functionality can be found in the Unwrap.v file*)
 
 (** ** Unwrap ERC20 correct *)
 Lemma unwrap_erc20_functionally_correct {chain ctx prev_state next_state eth_address amount fees_amount erc20_dest acts token_address v new_v} :
@@ -494,7 +519,8 @@ Proof.
 Qed.
 
 
-(**----------------- SignerOps Proofs -----------------**)
+(** * SignerOps Proofs *)
+(** The definition of functionality can be found in the SignerOps.v and SignerOps_Interface.v files*)
 
 (** ** Signer Ops Correct *)
 Lemma signer_ops_functionally_correct {chain ctx prev_state next_state signer addr} :
@@ -504,112 +530,5 @@ Proof.
     intros. contract_simpl minter_receive minter_init. cbn.
     rewrite FMap.find_add. reflexivity.
 Qed.
-
-(**----------------- Minter FA2 Safety Proofs -----------------**)
-(* 
-Definition sum_tx (txs : list MintBurnTx) (id : token_id): Z :=
-    fold_left 
-    (fun (acc : Z) (tx : MintBurnTx) => 
-        (
-            if tx.(mint_burn_token_id) =? id
-            then (acc + (Z.of_N tx.(mint_burn_amount)))%Z
-            else 0%Z
-        )
-        )
-    txs 0%Z.
-
-Definition mint_or_burn (msg : FA2_Multi_Asset.MultiAssetParam) (id : token_id) : Z :=
-    match msg with
-    | Tokens (param) =>
-        match param with 
-        | MintTokens mint_param => sum_tx mint_param id
-        | BurnTokens mint_param => (sum_tx mint_param id) * (-1)
-        end
-    | _ => 0
-    end.
-
-Definition mint_or_burn_tx (id : token_id) (tx : Tx) : Z :=
-    match tx.(tx_body) with
-    | tx_call (Some msg_serialized) =>
-    match @deserialize MultiAssetParam MultiAssetParam_serializable msg_serialized with
-    | Some msg => mint_or_burn msg id
-    | _ => 0
-    end
-    | _ => 0
-    end.
-
-Lemma minter_correct : forall bstate caddr_main erc20 fa2_address fa2_token_id (trace : ChainTrace empty_state bstate),
-    env_contracts bstate caddr_main = Some (minter_contract : WeakContract) ->
-    exists (state_main : State) depinfo_main,
-        contract_state bstate caddr_main = Some state_main /\
-        deployment_info Setup trace caddr_main = Some depinfo_main /\
-        (
-        get_fa2_token_id erc20 state_main.(assets).(erc20tokens) = Some (fa2_address, fa2_token_id) ->
-        filter (actTo fa2_address) (outgoing_acts bstate caddr_main) = [] ->
-        exists total,
-        sumZ (mint_or_burn_tx fa2_token_id) (filter (txCallTo fa2_address) (outgoing_txs trace caddr_main)) = total
-        ).
-Proof.
-    contract_induction;
-    intros; auto.
-    -  exists 0%Z. easy.
-    - eexists. Admitted.
-
-
-Lemma fa2_correct : forall bstate fa2_address fa2_token_id total_supply (trace: ChainTrace empty_state bstate),
-    env_contracts bstate fa2_address = Some (FA2_contract : WeakContract) ->
-    exists (state_fa2 : MultiAssetStorage) depinfo_fa2,
-        contract_state bstate fa2_address = Some state_fa2 /\
-        deployment_info FA2_Multi_Asset.Setup trace fa2_address = Some depinfo_fa2 /\ 
-        (
-        FMap.find fa2_token_id state_fa2.(fa2_assets).(token_total_supply) = Some total_supply ->
-        sumZ (mint_or_burn_tx fa2_token_id) (incoming_txs trace fa2_address) = Z.of_N total_supply
-        ).
-Proof.
-    contract_induction.
-    
-
-Lemma fa2_correct : forall bstate fa2_address (trace : ChainTrace empty_state bstate),
-    env_contracts bstate fa2_address = Some (FA2_contract : WeakContract) ->
-    exists (state_fa2 : MultiAssetStorage) depinfo_fa2,
-        contract_state bstate fa2_address = Some state_fa2 /\
-        deployment_info FA2_Multi_Asset.Setup trace fa2_address = Some depinfo_fa2.
-Proof.
-Admitted.
-    
-    
-
-Lemma minter_fa2_synced_spec : forall bstate caddr_main erc20 fa2_address fa2_token_id token_supply (trace : ChainTrace empty_state bstate),
-    env_contracts bstate caddr_main = Some (minter_contract : WeakContract) ->
-    env_contracts bstate fa2_address = Some (FA2_contract : WeakContract) ->
-    exists state_main state_fa2 depinfo_main depinfo_lqt,
-    contract_state bstate caddr_main = Some state_main /\
-    contract_state bstate fa2_address = Some (state_fa2 : MultiAssetStorage) /\
-    deployment_info Setup trace caddr_main = Some depinfo_main /\
-    deployment_info FA2_Multi_Asset.Setup trace fa2_address = Some depinfo_lqt /\
-    (get_fa2_token_id erc20 state_main.(assets).(erc20tokens) = Some (fa2_address, fa2_token_id) ->
-    state_fa2.(fa2_admin).(tas_minter) = caddr_main ->
-    filter (actTo fa2_address) (outgoing_acts bstate caddr_main) = [] ->
-    FMap.find fa2_token_id state_fa2.(fa2_assets).(token_total_supply) = Some token_supply ->
-    sumZ (mint_or_burn_tx fa2_token_id) (outgoing_txs trace caddr_main) = Z.of_N token_supply
-    ).
-Proof.
-    intros ? ? ? ? ? ? ? minter_deployed fa2_deployed.
-    apply (minter_correct _ _ trace) in minter_deployed as minter.
-    destruct minter as (state_main & depinfo_main & deployed_state_main & dep_info_main).
-    apply (fa2_correct _ _ trace) in fa2_deployed as fa2.
-    destruct fa2 as (state_fa2 & depinfo_fa2 & deployed_state_fa2 & dep_info_fa2).
-    do 4 eexists.
-    repeat split; eauto.
-    intros. unfold mint_or_burn_tx.
-
-
-
-    
-
-    
-    
-     *)
-
 
 End Main. 

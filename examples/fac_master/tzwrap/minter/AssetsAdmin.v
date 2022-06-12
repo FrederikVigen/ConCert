@@ -1,4 +1,4 @@
-(** * Asset Admins part of the Minter Contract *)
+(** * Asset Admins part of the Minter Contract (THIS FILE IS OBSOLETE, SINCE FUNCTIONALITY WAS MOVED TO THE FA2 TOKENS CONTRACT) *)
 (** This file contains the implementation of the Assets Admin part of the Minter Contract
     The contracts handles all incoming calls that manages admin functionality for the assets. Such as for example changing the admin, minter or pausing tokens.
     The file this file has been translated from can be found here:
