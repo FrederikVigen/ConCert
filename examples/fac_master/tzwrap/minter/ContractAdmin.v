@@ -1,3 +1,10 @@
+(** * Contract admin part of the Minter Contract *)
+(** This file contains the implementation of the Contract Admin part of the Minter Contract
+    The contracts handles all incoming calls that manages admin functionality for the contract. Such as for example changing the new oracle, signer MinterAdmin and also a pause for the whole contract.
+    The file this file has been translated from can be found here:
+    https://github.com/bender-labs/wrap-tz-contracts/blob/1655949e61b05a1c25cc00dcb8c1da9d91799f31/ligo/minter/contract_admin.mligo
+*)
+
 Require Import Storage.
 Require Import Blockchain.
 Require Import List.
@@ -10,6 +17,7 @@ From ConCert.Utils Require Import RecordUpdate.
 Section ContractAdmin.
 Context {BaseTypes : ChainBase}.
 
+(** ** The Entrypoints of the Contract Admin *)
 Inductive ContractAdminEntrypoints :=
     | SetAdministrator (addr : Address)
     | ConfirmMinterAdmin
@@ -17,29 +25,40 @@ Inductive ContractAdminEntrypoints :=
     | SetSigner (addr : Address)
     | PauseContract (pause : bool).
 
+(* begin hide *)
 Global Instance ContractAdminEntrypoints_serializable : Serializable ContractAdminEntrypoints :=
     Derive Serializable ContractAdminEntrypoints_rect<SetAdministrator, ConfirmMinterAdmin, SetOracle, SetSigner, PauseContract>.
+(* end hide *)
 
+(** ** The Return type of all the Contract Admin Entrypoints *)
 Definition ContractAdminReturnType : Type := (list ActionBody * ContractAdminStorage).
 
+(** ** All the fail criteria for the entrypoints *)
+(** Fail if the caller is not admin *)
 Definition fail_if_not_admin (ctx : ContractCallContext) (s : ContractAdminStorage) : option unit :=
     if address_eqb s.(administrator) ctx.(ctx_from) then Some tt else None.
 
+(** Fail if the caller is not a signer *)
 Definition fail_if_not_signer (ctx : ContractCallContext) (s : ContractAdminStorage) : option unit :=
     if address_eqb s.(signer) ctx.(ctx_from) then Some tt else None.
 
+(** Fail if the caller is not the oracle *)
 Definition fail_if_not_oracle (ctx : ContractCallContext) (s : ContractAdminStorage) : option unit :=
     if address_eqb s.(oracle) ctx.(ctx_from) then Some tt else None.
 
+(** ** Sets a new administrator *)
 Definition set_administrator (s : ContractAdminStorage) (new_administrator : Address) : ContractAdminReturnType :=
     ([],s<|administrator := new_administrator|>).
 
+(** ** Sets a new signer *)
 Definition set_signer (s : ContractAdminStorage) (new_signer : Address) : ContractAdminReturnType :=
     ([],s<|signer:=new_signer|>).
 
+(** ** Pause or unpause contract *)
 Definition pause (s : ContractAdminStorage) (p : bool) : ContractAdminReturnType :=
     ([],s<|paused:=p|>).
 
+(** ** Confirms a new admin *)
 Definition confirm_new_minter_admin (ctx : ContractCallContext) (s : ContractAdminStorage) : option ContractAdminReturnType :=
     match s.(pending_admin) with
     | Some pending_admin_curr => 
@@ -49,6 +68,7 @@ Definition confirm_new_minter_admin (ctx : ContractCallContext) (s : ContractAdm
     | None => None
     end.
 
+(** ** The main entrypoint function *)
 Definition contract_admin_main (ctx: ContractCallContext) (p : ContractAdminEntrypoints) (s : ContractAdminStorage) : option ContractAdminReturnType :=
     match p with 
     | SetAdministrator n => 
@@ -65,33 +85,5 @@ Definition contract_admin_main (ctx: ContractCallContext) (p : ContractAdminEntr
         do _ <- fail_if_not_admin ctx s;
         Some (pause s p )
     end.
-
-Lemma set_administrator_fail_if_not_admin {ctx n state} :
-    ctx.(ctx_from) <> state.(administrator) ->
-    contract_admin_main ctx (SetAdministrator n) state = None.
-Proof.
-    intros. cbn. unfold fail_if_not_admin. destruct_address_eq; try easy.
-Qed.
-
-Lemma set_oracle_fail_if_not_admin {ctx n state} :
-    ctx.(ctx_from) <> state.(administrator) ->
-    contract_admin_main ctx (SetOracle n) state = None.
-Proof.
-    intros. cbn. unfold fail_if_not_admin. destruct_address_eq; try easy.
-Qed.
-
-Lemma set_signer_fail_if_not_admin {ctx n state} :
-    ctx.(ctx_from) <> state.(administrator) ->
-    contract_admin_main ctx (SetSigner n) state = None.
-Proof.
-    intros. cbn. unfold fail_if_not_admin. destruct_address_eq; try easy.
-Qed.
-
-Lemma pause_contract_fail_if_not_admin {ctx p state} :
-    ctx.(ctx_from) <> state.(administrator) ->
-    contract_admin_main ctx (PauseContract p) state = None.
-Proof.
-    intros. cbn. unfold fail_if_not_admin. destruct_address_eq; try easy.
-Qed.
 
 End ContractAdmin.
