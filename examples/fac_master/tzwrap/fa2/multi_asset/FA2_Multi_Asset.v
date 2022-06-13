@@ -647,6 +647,16 @@ Proof.
     now setoid_rewrite FMap.find_add.
 Qed.
 
+Lemma cant_create_already_created_token : forall prev_state chain ctx fa2_token_id info_map t,
+    FMap.find fa2_token_id (mts_token_metadata (fa2_assets prev_state)) = Some t ->
+    let new_token_metadata := {|
+        metadata_token_id := fa2_token_id ;
+        metadata_token_info := info_map 
+    |} in
+    fa2_receive chain ctx prev_state (Some (Admin (Create_token new_token_metadata))) = None.
+Proof.
+    Admitted.
+
 (** ** Set admin preserves total supply *)
 Lemma set_admin_preserves_total_supply {prev_state next_state chain ctx addr acts} :
     fa2_receive chain ctx prev_state (Some (Admin (Token_admin (Set_admin addr)))) = Some (next_state, acts) ->
@@ -1246,4 +1256,125 @@ Proof.
         subst. 
         easy.
 Qed.
+
+Axiom fa2_no_mint_before_token_created_axiom : forall inc_calls fa2_token_id prev_state,
+FMap.find fa2_token_id prev_state.(fa2_assets).(mts_token_metadata) = None ->
+sumZ (fun callInfo => mint_or_burn fa2_token_id callInfo.(call_msg)) inc_calls = 0%Z.
+
+Lemma fa2_correct : forall bstate caddr fa2_token_id (trace: ChainTrace empty_state bstate),
+    env_contracts bstate caddr = Some (FA2_contract : WeakContract) ->
+    exists cstate inc_calls,
+        contract_state bstate caddr = Some cstate /\
+        incoming_calls MultiAssetParam trace caddr = Some inc_calls /\
+        (
+        let total_supply_opt := FMap.find fa2_token_id cstate.(fa2_assets).(token_total_supply) in
+        let metadata_opt := FMap.find fa2_token_id cstate.(fa2_assets).(mts_token_metadata) in
+        match total_supply_opt with
+        | Some total_supply =>
+            match metadata_opt with
+            | Some metadata =>
+                sumZ (fun callInfo => mint_or_burn fa2_token_id callInfo.(call_msg)) inc_calls = Z.of_N total_supply
+            | None => True
+            end
+        | None =>
+            match metadata_opt with
+            | Some metadata => True
+            | None => True
+            end
+        end
+        ).
+Proof.
+    contract_induction;
+    intros; try easy.
+    - intros. cbn in *. destruct (FMap.find fa2_token_id (token_total_supply (fa2_assets result))) eqn:E; destruct (FMap.find fa2_token_id (mts_token_metadata (fa2_assets result))) eqn:E2; try easy.
+        + eapply init_total_supply_correct in init_some; now eauto.
+    - unfold callFrom in *. unfold receive in receive_some. simpl in *. destruct msg; try easy; destruct m; destruct param.
+        + erewrite <- assets_endpoint_preserves_total_supply; eauto. erewrite <- assets_endpoint_preserves_metadata; eauto.
+        + erewrite <- assets_endpoint_preserves_total_supply; eauto. erewrite <- assets_endpoint_preserves_metadata; eauto.
+        + erewrite <- assets_endpoint_preserves_total_supply; eauto. erewrite <- assets_endpoint_preserves_metadata; eauto.
+        + destruct tokenAdmin.
+            * erewrite <- set_admin_preserves_total_supply; eauto. erewrite <- set_admin_preserves_metadata; eauto.
+            * erewrite <- confirm_admin_preserves_total_supply; eauto. erewrite <- confirm_admin_preserves_metadata; eauto.
+            * erewrite <- pause_preserves_total_supply; eauto. erewrite <- pause_preserves_metadata; eauto.
+            * erewrite <- set_minter_preserves_total_supply; eauto. erewrite <- set_minter_preserves_metadata; eauto.
+        + destruct tokenMetaData. destruct (fa2_token_id =? metadata_token_id) eqn:E.
+        destruct (FMap.find fa2_token_id (token_total_supply (fa2_assets new_state))) eqn:E2;
+        destruct (FMap.find fa2_token_id (mts_token_metadata (fa2_assets new_state))) eqn:E3; try easy.
+            * cbn. apply create_new_token_means_zero_supply in receive_some as H.
+                apply N.eqb_eq in E. rewrite E in *. destruct (FMap.find metadata_token_id (token_total_supply (fa2_assets prev_state))) eqn: E4;
+                destruct (FMap.find metadata_token_id (mts_token_metadata (fa2_assets prev_state))) eqn: E5.
+                -- cbn in receive_some; unfold create_token in receive_some; cbn in receive_some. 
+                   setoid_rewrite E5 in receive_some. easy.
+                -- instantiate (CallFacts := fun _ _ prev_state _ => (FMap.find fa2_token_id prev_state.(fa2_assets).(mts_token_metadata) = None ->
+                   FMap.find fa2_token_id prev_state.(fa2_assets).(token_total_supply) = None)). 
+                   unfold CallFacts in facts. rewrite E in *. apply facts in E5. easy.
+                -- now apply (cant_create_already_created_token prev_state chain ctx metadata_token_id metadata_token_info t0) in E5.
+                -- apply (fa2_no_mint_before_token_created_axiom prev_inc_calls metadata_token_id prev_state) in E5.
+                   rewrite H in E2. inversion E2. easy.
+            * cbn. destruct (FMap.find fa2_token_id (token_total_supply (fa2_assets new_state))) eqn:E2;
+              destruct (FMap.find fa2_token_id (mts_token_metadata (fa2_assets new_state))) eqn:E3; try easy.
+              apply N.eqb_neq in E. eapply create_new_token_changes_nothing_else in receive_some; eauto. inversion receive_some.
+              rewrite <- H in E2. rewrite <- H0 in E3. 
+              destruct (FMap.find fa2_token_id (token_total_supply (fa2_assets prev_state))) eqn:E4 in IH; try easy.
+              destruct (FMap.find fa2_token_id (mts_token_metadata (fa2_assets prev_state))) eqn:E5 in IH; try easy.  
+        + induction p. 
+            -- erewrite <- empty_mint_preserves_total_supply; eauto. erewrite <- mint_preserves_metadata; eauto.
+            -- cbn in *. destruct (fail_if_not_minter ctx (fa2_admin prev_state)); try easy.
+               destruct (FMap.find fa2_token_id (token_total_supply (fa2_assets new_state)));
+               destruct (FMap.find fa2_token_id (mts_token_metadata (fa2_assets new_state))); try easy.
+               destruct (mint_burn_token_id a =? fa2_token_id) eqn:E.
+               --- apply N.eqb_eq in E. rewrite E in *. 
+        + admit.
+    - unfold callFrom in *. unfold receive in receive_some. simpl in *. destruct msg; try easy; destruct m; destruct param.
+        + erewrite <- assets_endpoint_preserves_total_supply; eauto. erewrite <- assets_endpoint_preserves_metadata; eauto.
+        + erewrite <- assets_endpoint_preserves_total_supply; eauto. erewrite <- assets_endpoint_preserves_metadata; eauto.
+        + erewrite <- assets_endpoint_preserves_total_supply; eauto. erewrite <- assets_endpoint_preserves_metadata; eauto.
+        + destruct tokenAdmin.
+            * erewrite <- set_admin_preserves_total_supply; eauto. erewrite <- set_admin_preserves_metadata; eauto.
+            * erewrite <- confirm_admin_preserves_total_supply; eauto. erewrite <- confirm_admin_preserves_metadata; eauto.
+            * erewrite <- pause_preserves_total_supply; eauto. erewrite <- pause_preserves_metadata; eauto.
+            * erewrite <- set_minter_preserves_total_supply; eauto. erewrite <- set_minter_preserves_metadata; eauto.
+        + destruct tokenMetaData. destruct (fa2_token_id =? metadata_token_id) eqn:E.
+        destruct (FMap.find fa2_token_id (token_total_supply (fa2_assets new_state))) eqn:E2;
+        destruct (FMap.find fa2_token_id (mts_token_metadata (fa2_assets new_state))) eqn:E3; try easy.
+            * cbn. apply create_new_token_means_zero_supply in receive_some as H.
+                apply N.eqb_eq in E. rewrite E in *. destruct (FMap.find metadata_token_id (token_total_supply (fa2_assets prev_state))) eqn: E4;
+                destruct (FMap.find metadata_token_id (mts_token_metadata (fa2_assets prev_state))) eqn: E5.
+                -- cbn in receive_some; unfold create_token in receive_some; cbn in receive_some. 
+                setoid_rewrite E5 in receive_some. easy.
+                -- unfold CallFacts in facts. rewrite E in *. apply facts in E5. easy.
+                -- now apply (cant_create_already_created_token prev_state chain ctx metadata_token_id metadata_token_info t0) in E5.
+                -- apply (fa2_no_mint_before_token_created_axiom prev_inc_calls metadata_token_id prev_state) in E5.
+                rewrite H in E2. inversion E2. easy.
+            * cbn. destruct (FMap.find fa2_token_id (token_total_supply (fa2_assets new_state))) eqn:E2;
+            destruct (FMap.find fa2_token_id (mts_token_metadata (fa2_assets new_state))) eqn:E3; try easy.
+            apply N.eqb_neq in E. eapply create_new_token_changes_nothing_else in receive_some; eauto. inversion receive_some.
+            rewrite <- H in E2. rewrite <- H0 in E3. 
+            destruct (FMap.find fa2_token_id (token_total_supply (fa2_assets prev_state))) eqn:E4 in IH; try easy.
+            destruct (FMap.find fa2_token_id (mts_token_metadata (fa2_assets prev_state))) eqn:E5 in IH; try easy.  
+        + induction p. 
+            -- erewrite <- empty_mint_preserves_total_supply; eauto. erewrite <- mint_preserves_metadata; eauto.
+            -- admit.
+        + admit.
+    - instantiate (AddBlockFacts := fun _ _ _ _ _ _ => True).
+    instantiate (DeployFacts := fun _ _ => True).
+    unset_all; subst.
+    destruct_chain_step; auto.
+    destruct_action_eval; auto.
+    intros state' deployed' deployed_state'.
+    rewrite deployed in deployed'.
+    inversion deployed'.
+    subst.
+    destruct from_reachable as [trace].
+    clear deployed'.
+    specialize no_metadata_no_supply with (fa2_token_id := fa2_token_id) as (state & state_deployed & ?); eauto.
+    rewrite state_deployed in deployed_state'. 
+    inversion deployed_state'. 
+    subst. 
+    easy.
+Qed.
+
 End FA2_Multi_Asset.
+
+apply N.eqb_eq in E. rewrite E in *. rewrite H in E2. inversion E2.
+              apply (fa2_no_mint_before_token_created_axiom prev_inc_calls metadata_token_id prev_state).
