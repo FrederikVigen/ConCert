@@ -22,4 +22,4 @@ Definition signer_ops_main (ctx : ContractCallContext) (ep : SignerOpsEntrypoint
         Some (s<|fees:= s.(fees)<|fees_storage_signers := new_quorom|>|>, [])
     end.
 
-End SignerOps.
+End Signer_Ops.
