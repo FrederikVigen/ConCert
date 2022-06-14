@@ -557,7 +557,7 @@ Proof.
     -   (* Facts *)
         instantiate (AddBlockFacts := fun _ _ _ _ _ _ => True).
         instantiate (DeployFacts := fun _ _ => True).
-        instantiate (CallFacts := fun _ _ _ _ => True).
+        instantiate (CallFacts := fun _ _ _ _ _ => True).
         unset_all; subst;cbn in *.
         destruct step; try easy.
         destruct a; try easy.

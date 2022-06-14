@@ -161,9 +161,9 @@ fac_master/tzwrap/minter/Main.v
 fac_master/tzwrap/minter/Oracle_Interface.v
 fac_master/tzwrap/minter/Oracle.v
 fac_master/tzwrap/minter/Signer_Interface.v
-fac_master/tzwrap/minter/SignerOps_Interface.v
+fac_master/tzwrap/minter/Signer_Ops_Interface.v
 fac_master/tzwrap/minter/Signer.v
-fac_master/tzwrap/minter/SignerOps.v
+fac_master/tzwrap/minter/Signer_Ops.v
 fac_master/tzwrap/minter/Tokens_Lib.v
 fac_master/tzwrap/minter/Types.v
 fac_master/tzwrap/minter/Unwrap.v

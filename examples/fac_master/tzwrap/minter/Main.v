@@ -23,7 +23,7 @@ Require Import Oracle.
 Require Import Signer_Interface.
 Require Import Signer.
 Require Import Signer_Ops_Interface.
-Require Import SignerOps.
+Require Import Signer_Ops.
 Require Import Serializable.
 Require Import Ethereum_Lib.
 Require Import Containers.

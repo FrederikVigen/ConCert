@@ -11,7 +11,7 @@ Import ListNotations.
 Require Import RecordUpdate.
 Require Import Containers.
 
-Section SignerOps.
+Section Signer_Ops.
 Context {BaseTypes : ChainBase}.
 
 (** ** Set Signer Payment Address entrypoint  *)
