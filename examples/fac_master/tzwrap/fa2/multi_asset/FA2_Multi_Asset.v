@@ -655,7 +655,12 @@ Lemma cant_create_already_created_token : forall prev_state chain ctx fa2_token_
     |} in
     fa2_receive chain ctx prev_state (Some (Admin (Create_token new_token_metadata))) = None.
 Proof.
-    Admitted.
+    intros.
+    contract_simpl fa2_receive fa2_init.
+    unfold create_token.
+    assert (metadata_token_id new_token_metadata = fa2_token_id); try easy.
+    destruct (FMap.find (metadata_token_id new_token_metadata) (mts_token_metadata (fa2_assets prev_state))) eqn:E; try easy.
+Qed.
 
 (** ** Set admin preserves total supply *)
 Lemma set_admin_preserves_total_supply {prev_state next_state chain ctx addr acts} :
@@ -1320,10 +1325,12 @@ Proof.
         + induction p. 
             -- erewrite <- empty_mint_preserves_total_supply; eauto. erewrite <- mint_preserves_metadata; eauto.
             -- cbn in *. destruct (fail_if_not_minter ctx (fa2_admin prev_state)); try easy.
-               destruct (FMap.find fa2_token_id (token_total_supply (fa2_assets new_state)));
-               destruct (FMap.find fa2_token_id (mts_token_metadata (fa2_assets new_state))); try easy.
-               destruct (mint_burn_token_id a =? fa2_token_id) eqn:E.
-               --- apply N.eqb_eq in E. rewrite E in *. 
+               destruct (FMap.find fa2_token_id (token_total_supply (fa2_assets new_state))) eqn:E;
+               destruct (FMap.find fa2_token_id (mts_token_metadata (fa2_assets new_state))) eqn:E2; try easy.
+               destruct (mint_burn_token_id a =? fa2_token_id) eqn:E3.
+               --- admit.
+               --- admit.
+               
         + admit.
     - unfold callFrom in *. unfold receive in receive_some. simpl in *. destruct msg; try easy; destruct m; destruct param.
         + erewrite <- assets_endpoint_preserves_total_supply; eauto. erewrite <- assets_endpoint_preserves_metadata; eauto.
@@ -1372,9 +1379,6 @@ Proof.
     inversion deployed_state'. 
     subst. 
     easy.
-Qed.
+Admitted.
 
 End FA2_Multi_Asset.
-
-apply N.eqb_eq in E. rewrite E in *. rewrite H in E2. inversion E2.
-              apply (fa2_no_mint_before_token_created_axiom prev_inc_calls metadata_token_id prev_state).
