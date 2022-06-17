@@ -1,7 +1,12 @@
+(** * Tokens lib *)
+(** This is an implementation of the following file.
+https://github.com/bender-labs/wrap-tz-contracts/blob/master/ligo/minter/tokens_lib.mligo.
+
+*)
 Require Import Ethereum_Lib.
 Require Import Storage.
 Require Import Blockchain.
-Require Import FA2InterfaceOwn.
+Require Import FA2Interface_Wrap.
 From ConCert.Examples Require Import FA2Interface.
 From ConCert.Execution Require Import Containers.
 Require Import Types.

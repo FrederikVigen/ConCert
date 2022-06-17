@@ -1,3 +1,8 @@
+(** * FA2Interface for TzWrap *)
+(** This file contains the things from 
+https://github.com/bender-labs/wrap-tz-contracts/blob/1655949e61b05a1c25cc00dcb8c1da9d91799f31/ligo/fa2/common/fa2_interface.mligo
+that are not present in the standard FA2Interface*)
+
 From Coq Require Import ZArith.
 Require Import Blockchain.
 From ConCert.Examples.FA2 Require Import FA2Interface.
@@ -8,67 +13,35 @@ Require Import Containers.
 Require Import String.
 
 
-Section FA2InterfaceOwn.
+Section FA2Interface_Wrap.
 Set Nonrecursive Elimination Schemes.
 Context {BaseTypes : ChainBase}.
 Open Scope N_scope.
 
-(*TODO: Missing entries in FA2Interface that we have had to build on our own*)
-
-Record operator_param_own := {
-  op_param_owner : Address;
-  op_param_operator : Address;
-  op_param_token_id : token_id;
-}.
-
-Inductive update_operator_own :=
-  | add_operator : operator_param_own -> update_operator_own
-  | remove_operator : operator_param_own -> update_operator_own.
-
-Global Instance operator_param_own_serializable : Serializable operator_param_own :=
-Derive Serializable operator_param_own_rect<Build_operator_param_own>.
-
-Global Instance update_operator_own_serializable : Serializable update_operator_own :=
-Derive Serializable update_operator_own_rect<add_operator, remove_operator>.
-
-Record TransferDestination := mkTransferDestination {
-    to_ : Address;
-    dst_token_id : N;
-    amount : N;
-}.
-
-Record Transfer := mkTransfer {
-    from_ : Address;
-    txs : list TransferDestination;
-}.
-
-MetaCoq Run (make_setters TransferDestination). 
-MetaCoq Run (make_setters Transfer). 
-
-Global Instance TransferDestination_serializable : Serializable TransferDestination :=
-    Derive Serializable TransferDestination_rect<mkTransferDestination>.
-
-Global Instance Transfer_serializable : Serializable Transfer :=
-Derive Serializable Transfer_rect<mkTransfer>.
-
+(** ** Record for mint/burn transaction*)
 Record MintBurnTx := mkMintBurnTx {
     mint_burn_owner: Address;
     mint_burn_token_id : token_id;
     mint_burn_amount: N;
 }.
-
+(* begin hide *)
 Global Instance MintBurnTx_serializeable : Serializable MintBurnTx :=
     Derive Serializable MintBurnTx_rect<mkMintBurnTx>.
+(* end hide *)
 
 Definition MintBurnTokensParam : Type := list MintBurnTx.
 
+(** ** Endpoints for the TokenManager*)
 Inductive TokenManager := 
     | MintTokens (p : MintBurnTokensParam)
     | BurnTokens (p : MintBurnTokensParam).
 
+(* begin hide *)
 Global Instance TokenManager_serializable : Serializable TokenManager :=
 Derive Serializable TokenManager_rect<MintTokens, BurnTokens>.
+(* end hide *)
 
+(** ** Param and endpoints for TokenAdmin*)
 Record PauseParam := mkPauseParam {
     pp_token_id : N;
     pp_paused : bool
@@ -80,37 +53,38 @@ Inductive TokenAdmin :=
 | Pause (param : list PauseParam)
 | Set_minter (addr : Address).
 
+(* begin hide *)
 Global Instance PauseParam_serializable : Serializable PauseParam :=
 Derive Serializable PauseParam_rect<mkPauseParam>.
 
 Global Instance TokenAdmin_serializable : Serializable TokenAdmin :=
 Derive Serializable TokenAdmin_rect<Set_admin, Confirm_admin, Pause, Set_minter>.
+(* end hide *)
 
+(** ** Maps for holding metadata*)
 Definition ContractMetadata := FMap string N.
 
-Record TokenMetadata := mkTokenMetadata {
-    tm_token_id : token_id ;
-    tm_token_info : FMap string N 
-}.
+Definition TokenMetaDataStorage := FMap token_id token_metadata.
 
-Global Instance TokenMetadata_serializable : Serializable TokenMetadata :=
-Derive Serializable TokenMetadata_rect<mkTokenMetadata>.
-
-Definition TokenMetaDataStorage := FMap token_id TokenMetadata.
-
+(** ** Standard endpoints for FA2*)
 Inductive FA2EntryPoints :=
-| FA2_Transfer (transfers : list Transfer)
+| FA2_Transfer (transfers : list transfer)
 | Balance_of (balanceOf : balance_of_param)
-| Update_operators (updates : list update_operator_own).
+| Update_operators (updates : list update_operator).
 
+(* begin hide *)
 Global Instance FA2EntryPoints_serializable : Serializable FA2EntryPoints :=
 Derive Serializable FA2EntryPoints_rect<FA2_Transfer, Balance_of, Update_operators>.
+(* end hide *)
 
+(** ** Endpoints for MultiTokenAdmin*)
 Inductive MultiTokenAdmin := 
 | Token_admin (tokenAdmin : TokenAdmin)
-| Create_token (tokenMetaData : TokenMetadata).
+| Create_token (tokenMetaData : token_metadata).
 
+(* begin hide *)
 Global Instance MultiTokenAdmin_serializable : Serializable MultiTokenAdmin :=
 Derive Serializable MultiTokenAdmin_rect<Token_admin, Create_token>.
+(* end hide *)
 
-End FA2InterfaceOwn.
+End FA2Interface_Wrap.

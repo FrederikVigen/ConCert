@@ -1,6 +1,6 @@
 -R ../utils/theories ConCert.Utils
 -R ../execution/theories ConCert.Execution
--R ../execution/test ConCert.Execution.QCTest
+-R ../execution/test ConCert.Execution.Test
 -R ../embedding/theories ConCert.Embedding
 -R ../embedding/extraction ConCert.Embedding.Extraction
 -R ../extraction/theories ConCert.Extraction
@@ -8,6 +8,7 @@
 
 -Q eip20 ConCert.Examples.EIP20
 eip20/EIP20Token.v
+eip20/EIP20TokenCorrect.v
 eip20/EIP20TokenGens.v
 eip20/EIP20TokenPrinters.v
 eip20/EIP20TokenTests.v
@@ -17,17 +18,21 @@ eip20/EIP20CameLIGOExtraction.v
 -Q bat ConCert.Examples.BAT
 bat/BATCommon.v
 bat/BAT.v
-bat/BAT_Fixed.v
-bat/BAT_AltFix.v
+bat/BATFixed.v
+bat/BATAltFix.v
+bat/BATCorrect.v
+bat/BATFixedCorrect.v
+bat/BATAltFixCorrect.v
 bat/BATPrinters.v
 bat/BATGens.v
 bat/BATTestCommon.v
 bat/BATTests.v
-bat/BAT_FixedTests.v
-bat/BAT_AltFixTests.v
+bat/BATFixedTests.v
+bat/BATAltFixTests.v
 
 -Q fa2 ConCert.Examples.FA2
 fa2/FA2Interface.v
+fa2/FA2LegacyInterface.v
 fa2/FA2Token.v
 fa2/TestContracts.v
 fa2/FA2Printers.v
@@ -36,17 +41,29 @@ fa2/FA2TokenTests.v
 
 -Q fa1_2 ConCert.Examples.FA1_2
 fa1_2/FA1_2.v
-
--Q dexter2 ConCert.Examples.Dexter2
-dexter2/Dexter2FA12.v
-dexter2/Dexter2CPMM.v
-dexter2/Dexter2Extract.v
+fa1_2/FA1_2Correct.v
 
 -Q dexter ConCert.Examples.Dexter
 dexter/Dexter.v
 dexter/DexterPrinters.v
 dexter/DexterGens.v
 dexter/DexterTests.v
+
+-Q dexter2 ConCert.Examples.Dexter2
+dexter2/Dexter2FA12.v
+dexter2/Dexter2CPMM.v
+dexter2/Dexter2FA12Correct.v
+dexter2/Dexter2CPMMCorrect.v
+dexter2/Dexter2Extract.v
+dexter2/Dexter2Printers.v
+dexter2/Dexter2Gens.v
+dexter2/Dexter2Tests.v
+
+-Q exchangeBuggy ConCert.Examples.ExchangeBuggy
+exchangeBuggy/ExchangeBuggy.v
+exchangeBuggy/ExchangeBuggyPrinters.v
+exchangeBuggy/ExchangeBuggyGens.v
+exchangeBuggy/ExchangeBuggyTests.v
 
 -Q iTokenBuggy ConCert.Examples.iTokenBuggy
 iTokenBuggy/iTokenBuggy.v
@@ -120,7 +137,7 @@ fac_master/piggybank/PiggyBank.v
 fac_master/tzwrap/crypto/Crypto.v
 
 -R fac_master/tzwrap/fa2 Concert.Examples.Tzwrap.fa2
-fac_master/tzwrap/fa2/common/FA2InterfaceOwn.v
+fac_master/tzwrap/fa2/common/FA2Interface_Wrap.v
 fac_master/tzwrap/fa2/common/lib/FA2_Operator_Lib.v
 fac_master/tzwrap/fa2/common/FA2_Permissions_Descriptor.v
 fac_master/tzwrap/fa2/fa2_modules/TokenAdmin.v
@@ -144,7 +161,7 @@ fac_master/tzwrap/minter/Main.v
 fac_master/tzwrap/minter/Oracle_Interface.v
 fac_master/tzwrap/minter/Oracle.v
 fac_master/tzwrap/minter/Signer_Interface.v
-fac_master/tzwrap/minter/Signer_Ops_Interface.v
+fac_master/tzwrap/minter/SignerOps_Interface.v
 fac_master/tzwrap/minter/Signer.v
 fac_master/tzwrap/minter/SignerOps.v
 fac_master/tzwrap/minter/Tokens_Lib.v
