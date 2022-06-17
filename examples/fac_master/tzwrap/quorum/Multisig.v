@@ -9,7 +9,7 @@ Require Import Containers.
 Require Import Automation.
 Require Import Signer_Interface.
 Require Import Oracle_Interface.
-Require Import Signer_Ops_Interface.
+Require Import SignerOps_Interface.
 Require Import ZArith.
 Require Import String.
 Require Import List.
@@ -674,7 +674,7 @@ Lemma set_signer_payment_address_functionally_correct {chain ctx prev_state next
         (* Correct call to minter is made *)
         (
             FMap.find param.(pap_signer_id) prev_state.(signers) = Some k ->
-            let call := serialize (Signer_Ops_Interface.set_payment_address {| sparam_signer := Crypto.hash_key k; payment_address := ctx.(ctx_from) |}) in
+            let call := serialize (SignerOps_Interface.set_payment_address {| sparam_signer := Crypto.hash_key k; payment_address := ctx.(ctx_from) |}) in
             acts = [act_call param.(pap_minter_contract) 0 call]
         )
     ).
