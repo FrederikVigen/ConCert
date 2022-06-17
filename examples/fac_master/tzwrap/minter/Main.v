@@ -689,9 +689,11 @@ Proof.
          rewrite <- N.add_assoc; apply IHl.
 Qed.
 
+Lemma map_find_some_equals_in_elements {k map}
+
 Lemma apply_distribute_xtz_snd_is_fmap_add {total l distributed new_ledger a v} :
-    (snd (fold_left (apply_distribute_xtz total) l (distributed, (FMap.add a v new_ledger)))) = 
-    FMap.add a v ((snd (fold_left (apply_distribute_xtz total) l (distributed, new_ledger)))).
+    (snd (fold_left (apply_distribute_xtz total) l (distributed, (FMap.add a ((xtz_balance new_ledger a) + v) new_ledger)))) = 
+    FMap.add a ((xtz_balance new_ledger a) + v) ((snd (fold_left (apply_distribute_xtz total) l (distributed, new_ledger)))).
 Proof.
     generalize dependent distributed.
     generalize dependent new_ledger.
@@ -713,23 +715,9 @@ Proof.
     (fees_storage_xtz (fees prev_state))) eqn:E. 
         + apply FMap.add_id in E. rewrite E. easy.
         + apply adding_new_0_doesnot_change_sum in E. rewrite E. easy.
-    - rewrite apply_distribute_xtz_app_add_0. cbn. destruct a. cbn. 
-      destruct (FMap.find a (fees_storage_xtz (fees prev_state))) eqn:E.
-        + destruct (fold_left
-        (apply_distribute_xtz
-           (xtz_balance (fees_storage_xtz (fees prev_state))
-              (ctx_contract_address ctx))) l
-        (n *
-         xtz_balance (fees_storage_xtz (fees prev_state))
-           (ctx_contract_address ctx) / 100,
-        FMap.add a
-          (n *
-           xtz_balance (fees_storage_xtz (fees prev_state))
-             (ctx_contract_address ctx) / 100 + n0)
-          (fees_storage_xtz (fees prev_state)))) eqn:E1.
-        setoid_rewrite E1. rewrite apply_distribute_xtz_tple_dist in E1. inversion E1.
-        rewrite apply_distribute_xtz_snd_is_fmap_add. cbn.
-Qed.
+    - cbn in E. destruct a in E. destruct (FMap.find a (fees_storage_xtz (fees prev_state))).
+        + rewrite apply_distribute_xtz_tple_dist in E. inversion E. apply IHl. 
+Admitted.
 
 (** * SignerOps Proofs *)
 (** The definition of functionality can be found in the SignerOps.v and SignerOps_Interface.v files*)
