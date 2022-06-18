@@ -1389,41 +1389,6 @@ Proof.
                 
             --- (* Discriminate None = Some l in H1*) 
 
-
-            destruct (next_total_supply_opt) eqn:E3; try easy.
-            unfold burn_update_balances in IHp.
-            unfold burn_update_total_supply in IHp. cbn in IHp.
-            destruct (FMap.find (mint_burn_token_id a) t1) eqn:E4 in H1; setoid_rewrite E4 in H1; try easy.
-            apply IHp in H1.
-            destruct a. cbn in *.
-            generalize H1.
-            setoid_rewrite FMap.find_add. intros.
-            assert (next_total_supply_opt = FMap.find mint_burn_token_id t0). easy.
-            rewrite <- H2 in H. rewrite E3 in H.
-            rewrite <- H.
-            unfold sum_tx.
-            rewrite E4 in E2.
-            inversion E2.
-            subst.
-            easy.
-        --  apply N.eqb_neq in E.
-            destruct (FMap.find token_id t1) eqn:E2; try easy.
-            destruct (next_total_supply_opt) eqn:E3; try easy.
-            unfold mint_update_total_supply in IHp.
-            cbn in *.
-            destruct a. cbn in *.
-
-            destruct (FMap.find mint_burn_token_id t1) eqn:E4; setoid_rewrite E4 in H1.
-            --- eapply IHp in H1.
-                generalize H1.
-                setoid_rewrite FMap.find_add_ne; try easy.
-                setoid_rewrite E2.
-                destruct (FMap.find token_id t0) eqn:E5; try easy.
-                unfold sum_tx.
-                intros.
-                assert (next_total_supply_opt = Some n2); try easy.                
-            --- now rewrite update_none_is_none in H1.
-
 Lemma fa2_correct : forall bstate caddr fa2_token_id (trace: ChainTrace empty_state bstate),
     env_contracts bstate caddr = Some (FA2_contract : WeakContract) ->
     exists cstate inc_calls,
