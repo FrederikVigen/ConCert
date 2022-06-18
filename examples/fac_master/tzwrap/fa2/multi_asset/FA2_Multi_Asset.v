@@ -1346,7 +1346,7 @@ Lemma burn_functionally_correct2 : forall chain ctx prev_state token_id next_sta
     | Some prev_total_supply =>
         match next_total_supply_opt with
         | Some next_total_supply =>
-            ((sum_tx p token_id) + Z.of_N next_total_supply)%Z = Z.of_N prev_total_supply
+            (Z.of_N prev_total_supply - (sum_tx p token_id))%Z = Z.of_N next_total_supply
         | None => True
         end
     | None =>
@@ -1356,6 +1356,7 @@ Proof.
     intros.
     contract_simpl fa2_receive fa2_init.
     generalize dependent (prev_state.(fa2_assets).(token_total_supply)).
+    generalize dependent (ledger (fa2_assets prev_state)). 
     induction p.
     -   cbn in *. intros.
         destruct (FMap.find token_id t1) eqn:E; try easy.
@@ -1363,10 +1364,32 @@ Proof.
         inversion H2.
         subst.
         assert (next_total_supply_opt = FMap.find token_id t0); try easy.
+        assert (n0 = n); try easy.
     -   cbn in *. intros. 
         destruct (mint_burn_token_id a =? token_id) eqn:E.
         --  apply N.eqb_eq in E. subst.
             destruct (FMap.find (mint_burn_token_id a) t1) eqn:E2; try easy.
+            unfold burn_update_total_supply in IHp. cbn in IHp.
+            setoid_rewrite E2 in H2.
+            destruct (throwIf (n <? mint_burn_amount a)) eqn:E3;
+            destruct (throwIf (get_balance_amt (mint_burn_owner a, mint_burn_token_id a) l0 <? mint_burn_amount a)) eqn:E4.
+            --- unfold burn_update_balances in IHp.
+                cbn in IHp.
+                eapply IHp in H2; eauto.
+                generalize H2.
+                setoid_rewrite FMap.find_add.
+                destruct (next_total_supply_opt) eqn:E5; try easy.
+                intros. cbn in *.
+                unfold sum_tx in H.
+                rewrite <- H.
+                unfold throwIf in E3.
+                destruct (n <? mint_burn_amount a) eqn:E6; try easy.
+                apply N.ltb_ge in E6.
+                easy.
+                
+            --- (* Discriminate None = Some l in H1*) 
+
+
             destruct (next_total_supply_opt) eqn:E3; try easy.
             unfold burn_update_balances in IHp.
             unfold burn_update_total_supply in IHp. cbn in IHp.
