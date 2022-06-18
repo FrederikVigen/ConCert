@@ -488,7 +488,7 @@ Definition sum_tx (txs : list MintBurnTx) (id : token_id): Z :=
         (
             if tx.(mint_burn_token_id) =? id
             then (acc + (Z.of_N tx.(mint_burn_amount)))%Z
-            else 0%Z
+            else acc%Z
         )
         )
     0%Z txs.
