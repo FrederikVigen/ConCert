@@ -1354,10 +1354,7 @@ Proof.
                 setoid_rewrite H1 in receive_some.
                 rewrite burn_update_none_is_none in receive_some. 
                 easy.
-            --- destruct (FMap.find (mint_burn_token_id a) t0) eqn: E3 in receive_some; 
-                setoid_rewrite E3 in receive_some; try easy.
-                ---- admit.
-                ---- admit.
+            --- admit.
     - unfold callFrom in *. 
       unfold receive in receive_some. simpl in *. 
       destruct msg; try easy; destruct m; destruct param.
@@ -1383,20 +1380,28 @@ Proof.
             apply IH in H. cbn.
             easy.
         -- erewrite <- mint_preserves_metadata in H; eauto. 
-           apply IH in H as H2. 
-           rewrite H2. cbn in receive_some. 
-           destruct (fail_if_not_minter ctx (fa2_admin prev_state)); try easy.
-           unfold CallFacts in facts. 
-           apply facts in H.
-           unfold mint_update_total_supply in receive_some. 
-           unfold mint_or_burn. induction p; try easy.
-           cbn in *. destruct (mint_burn_token_id a =? fa2_token_id) eqn: E2; try easy.
-           apply N.eqb_eq in E2. 
-           subst. 
-           setoid_rewrite H in receive_some.
-           rewrite update_none_is_none in receive_some. 
-           easy.
-           admit.
+            apply IH in H as H2. 
+            rewrite H2.
+            cbn in receive_some. destruct (fail_if_not_minter ctx (fa2_admin prev_state)); try easy.
+            unfold CallFacts in facts.
+            apply facts in H.
+            unfold mint_update_total_supply in receive_some. 
+            unfold mint_or_burn. 
+            generalize dependent (prev_state.(fa2_assets).(token_total_supply)).
+            generalize dependent (prev_state.(fa2_assets).(ledger)).
+            induction p; intros; try easy.
+            cbn in *. destruct (mint_burn_token_id a =? fa2_token_id) eqn: E2.
+            --- apply N.eqb_eq in E2. 
+                subst. 
+                setoid_rewrite H in receive_some.
+                rewrite update_none_is_none in receive_some. 
+                easy.
+            --- destruct (FMap.find (mint_burn_token_id a) t0) eqn: E3 in receive_some; setoid_rewrite E3 in receive_some.
+                ---- apply IHp in receive_some; try easy.
+                    ----- admit.
+                    ----- intros. setoid_rewrite FMap.find_add_ne; try easy.
+                    ----- setoid_rewrite FMap.find_add_ne; try easy.
+                ---- now rewrite update_none_is_none in receive_some.
         -- erewrite <- burn_preserves_metadata in H; eauto. 
             apply IH in H as H2. cbn in *.
             destruct (fail_if_not_minter ctx (fa2_admin prev_state)); try easy. 
