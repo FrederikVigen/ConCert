@@ -33,6 +33,7 @@ Require Import Types.
 From ConCert.Examples.FA2 Require Import FA2Interface.
 From ConCert.Execution Require Import InterContractCommunication.
 From ConCert.Utils Require Import Extras.
+From ConCert.Utils Require Import Automation.
 Require Import FA2_Multi_Asset.
 Require Import FA2Interface_Wrap.
 Import ListNotations.
@@ -648,23 +649,29 @@ Definition mint_or_burn_tx (id : token_id) (tx : Tx) : Z :=
     | _ => 0
     end.
 
-Lemma minter_correct : forall bstate caddr_main erc20 fa2_address fa2_token_id (trace : ChainTrace empty_state bstate),
+Lemma minter_deployed_correctly : forall bstate caddr_main (trace : ChainTrace empty_state bstate),
     env_contracts bstate caddr_main = Some (minter_contract : WeakContract) ->
     exists (state_main : State) depinfo_main,
         contract_state bstate caddr_main = Some state_main /\
-        deployment_info Setup trace caddr_main = Some depinfo_main /\
-        (
-        get_fa2_token_id erc20 state_main.(assets).(erc20tokens) = Some (fa2_address, fa2_token_id) ->
-        filter (actTo fa2_address) (outgoing_acts bstate caddr_main) = [] ->
-        exists total,
-        sumZ (mint_or_burn_tx fa2_token_id) (filter (txCallTo fa2_address) (outgoing_txs trace caddr_main)) = total
-        ).
+        deployment_info Setup trace caddr_main = Some depinfo_main /\ True.
 Proof.
     contract_induction;
     intros; try easy.
-    destruct step; try easy.
-    Admitted.
+    instantiate (AddBlockFacts := fun _ _ _ _ _ _ => True).
+    instantiate (DeployFacts := fun _ ctx => True).
+    instantiate (CallFacts := fun _ ctx _ _ _ => True).
+    unset_all; subst.
+    destruct_chain_step; auto.
+    destruct_action_eval; auto.
+Qed.
     
+Axiom sent_to_minter_is_received : forall bstate fa2_token_id fa2_calls caddr_main (trace : ChainTrace empty_state bstate), 
+    sumZ (fun callInfo : ContractCallInfo MultiAssetParam => 
+        FA2_Multi_Asset.mint_or_burn fa2_token_id (call_msg callInfo)) fa2_calls =
+       sumZ (mint_or_burn_tx fa2_token_id)
+       (outgoing_txs trace (caddr_main)).
+
+
 Lemma minter_fa2_synced_spec : forall bstate caddr_main erc20 fa2_address fa2_token_id total_supply metadata (trace : ChainTrace empty_state bstate),
     env_contracts bstate caddr_main = Some (minter_contract : WeakContract) ->
     env_contracts bstate fa2_address = Some (FA2_contract : WeakContract) ->
@@ -681,7 +688,7 @@ Lemma minter_fa2_synced_spec : forall bstate caddr_main erc20 fa2_address fa2_to
     ).
 Proof.
     intros ? ? ? ? ? ? ? ? minter_deployed fa2_deployed.
-    apply (minter_correct bstate caddr_main erc20 fa2_address fa2_token_id trace) in minter_deployed as minter.
+    apply (minter_deployed_correctly bstate caddr_main trace) in minter_deployed as minter.
     destruct minter as (state_main & depinfo_main & deployed_state_main & dep_info_main).
     apply (fa2_correct bstate fa2_address fa2_token_id trace) in fa2_deployed as fa2.
     destruct fa2 as (state_fa2 & fa2_calls & deployed_state_fa2 & dep_info_fa2).
@@ -698,20 +705,9 @@ Proof.
     setoid_rewrite E1.
     setoid_rewrite E2.
     intros.
-    inversion H4.
-    inversion H5.
-    subst.
-    
-    
+    rewrite <- (sent_to_minter_is_received _ _ fa2_calls _ _); try easy.
+Qed.
 
+Print Assumptions minter_fa2_synced_spec.
     
-    
-    
-
-
-    
-
-    
-    
-
 End Main. 
