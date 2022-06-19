@@ -617,4 +617,101 @@ Proof.
     reflexivity.
 Qed.
 
+Definition sum_tx (txs : list MintBurnTx) (id : token_id): Z :=
+    fold_right 
+    (fun (tx : MintBurnTx) (acc : Z) => 
+        (
+            if tx.(mint_burn_token_id) =? id
+            then (acc + (Z.of_N tx.(mint_burn_amount)))%Z
+            else acc%Z
+        )
+        )
+    0%Z txs.
+
+Definition mint_or_burn (msg : FA2_Multi_Asset.MultiAssetParam) (id : token_id) : Z :=
+    match msg with
+    | Tokens (param) =>
+        match param with 
+        | MintTokens mint_param => sum_tx mint_param id
+        | BurnTokens mint_param => (sum_tx mint_param id) * (-1)
+        end
+    | _ => 0
+    end.
+
+Definition mint_or_burn_tx (id : token_id) (tx : Tx) : Z :=
+    match tx.(tx_body) with
+    | tx_call (Some msg_serialized) =>
+    match @deserialize MultiAssetParam MultiAssetParam_serializable msg_serialized with
+    | Some msg => mint_or_burn msg id
+    | _ => 0
+    end
+    | _ => 0
+    end.
+
+Lemma minter_correct : forall bstate caddr_main erc20 fa2_address fa2_token_id (trace : ChainTrace empty_state bstate),
+    env_contracts bstate caddr_main = Some (minter_contract : WeakContract) ->
+    exists (state_main : State) depinfo_main,
+        contract_state bstate caddr_main = Some state_main /\
+        deployment_info Setup trace caddr_main = Some depinfo_main /\
+        (
+        get_fa2_token_id erc20 state_main.(assets).(erc20tokens) = Some (fa2_address, fa2_token_id) ->
+        filter (actTo fa2_address) (outgoing_acts bstate caddr_main) = [] ->
+        exists total,
+        sumZ (mint_or_burn_tx fa2_token_id) (filter (txCallTo fa2_address) (outgoing_txs trace caddr_main)) = total
+        ).
+Proof.
+    contract_induction;
+    intros; try easy.
+    destruct step; try easy.
+    Admitted.
+    
+Lemma minter_fa2_synced_spec : forall bstate caddr_main erc20 fa2_address fa2_token_id total_supply metadata (trace : ChainTrace empty_state bstate),
+    env_contracts bstate caddr_main = Some (minter_contract : WeakContract) ->
+    env_contracts bstate fa2_address = Some (FA2_contract : WeakContract) ->
+    exists state_main state_fa2 depinfo_main,
+    contract_state bstate caddr_main = Some state_main /\
+    contract_state bstate fa2_address = Some (state_fa2 : MultiAssetStorage) /\
+    deployment_info Setup trace caddr_main = Some depinfo_main /\
+    (get_fa2_token_id erc20 state_main.(assets).(erc20tokens) = Some (fa2_address, fa2_token_id) ->
+    state_fa2.(fa2_admin).(tas_minter) = caddr_main ->
+    filter (actTo fa2_address) (outgoing_acts bstate caddr_main) = [] ->
+    FMap.find fa2_token_id state_fa2.(fa2_assets).(token_total_supply) = Some total_supply ->
+    FMap.find fa2_token_id (mts_token_metadata (fa2_assets state_fa2)) = Some metadata ->
+    sumZ (mint_or_burn_tx fa2_token_id) (outgoing_txs trace caddr_main) = Z.of_N total_supply
+    ).
+Proof.
+    intros ? ? ? ? ? ? ? ? minter_deployed fa2_deployed.
+    apply (minter_correct bstate caddr_main erc20 fa2_address fa2_token_id trace) in minter_deployed as minter.
+    destruct minter as (state_main & depinfo_main & deployed_state_main & dep_info_main).
+    apply (fa2_correct bstate fa2_address fa2_token_id trace) in fa2_deployed as fa2.
+    destruct fa2 as (state_fa2 & fa2_calls & deployed_state_fa2 & dep_info_fa2).
+    exists state_main.
+    exists state_fa2.
+    exists depinfo_main.
+    repeat split; try easy.
+    intros ? ? ?.
+    inversion dep_info_fa2.
+    generalize dependent H3.
+    destruct (FMap.find fa2_token_id (token_total_supply (fa2_assets state_fa2))) eqn:E1; try easy.
+    destruct (FMap.find fa2_token_id (mts_token_metadata (fa2_assets state_fa2))) eqn:E2; try easy.
+    cbn.
+    setoid_rewrite E1.
+    setoid_rewrite E2.
+    intros.
+    inversion H4.
+    inversion H5.
+    subst.
+    
+    
+
+    
+    
+    
+
+
+    
+
+    
+    
+
 End Main. 
