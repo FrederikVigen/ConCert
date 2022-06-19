@@ -1363,7 +1363,7 @@ Proof.
                     ----- now rewrite burn_update_total_supply_none_is_none in receive_some.
                 ---- now rewrite burn_update_total_supply_none_is_none in receive_some.
     - unfold callFrom in *. 
-      unfold receive in receive_some. simpl in *. 
+      unfold receive in receive_some. clear action_facts. simpl in *;
       destruct msg; try easy; destruct m; destruct param.
         -- erewrite <- assets_endpoint_preserves_metadata in H; eauto.
         -- erewrite <- assets_endpoint_preserves_metadata in H; eauto.
@@ -1405,7 +1405,6 @@ Proof.
                 easy.
             --- destruct (FMap.find (mint_burn_token_id a) t0) eqn: E3 in receive_some; setoid_rewrite E3 in receive_some.
                 ---- apply IHp in receive_some; try easy.
-                    ----- admit.
                     ----- intros. setoid_rewrite FMap.find_add_ne; try easy.
                     ----- setoid_rewrite FMap.find_add_ne; try easy.
                 ---- now rewrite update_none_is_none in receive_some.
@@ -1426,7 +1425,6 @@ Proof.
             --- destruct (FMap.find (mint_burn_token_id a) t0 ) eqn:E3; setoid_rewrite E3 in receive_some.
                 ---- destruct (throwIf (n <? mint_burn_amount a)) eqn:E4.
                     ----- apply IHp in receive_some; try easy.
-                        ------ admit.
                         ------ intros. apply N.eqb_neq in E2.
                                 setoid_rewrite FMap.find_add_ne; try easy.
                         ------ apply N.eqb_neq in E2.
@@ -1448,7 +1446,7 @@ Proof.
         inversion deployed_state'. 
         subst. 
         easy.
-Admitted.
+Qed.
 
 
 Lemma mint_functionally_correct2 : forall chain ctx prev_state token_id next_state p acts,
