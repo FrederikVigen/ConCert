@@ -1346,15 +1346,22 @@ Proof.
             unfold CallFacts in facts. 
             apply facts in H.
             generalize dependent (prev_state.(fa2_assets).(token_total_supply)).
-            generalize dependent (ledger (fa2_assets prev_state)). generalize dependent (ledger (fa2_assets prev_state)). 
             unfold burn_update_total_supply. induction p; intros; try easy.
             cbn in *.  destruct (mint_burn_token_id a =? fa2_token_id) eqn: E2; try easy.
             --- apply N.eqb_eq in E2. 
                 subst. 
-                setoid_rewrite H1 in receive_some.
+                setoid_rewrite H in receive_some.
                 rewrite burn_update_none_is_none in receive_some. 
                 easy.
-            --- admit.
+            --- destruct (FMap.find (mint_burn_token_id a) t0 ) eqn:E3; setoid_rewrite E3 in receive_some.
+                ---- destruct (throwIf (n <? mint_burn_amount a)) eqn:E4.
+                    ----- apply IHp in receive_some; try easy.
+                        ------ intros. apply N.eqb_neq in E2.
+                               setoid_rewrite FMap.find_add_ne; try easy.
+                        ------ apply N.eqb_neq in E2.
+                               setoid_rewrite FMap.find_add_ne; try easy.
+                    ----- now rewrite burn_update_total_supply_none_is_none in receive_some.
+                ---- now rewrite burn_update_total_supply_none_is_none in receive_some.
     - unfold callFrom in *. 
       unfold receive in receive_some. simpl in *. 
       destruct msg; try easy; destruct m; destruct param.
