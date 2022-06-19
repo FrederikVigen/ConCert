@@ -665,12 +665,16 @@ Proof.
     destruct_action_eval; auto.
 Qed.
     
-Axiom sent_to_minter_is_received : forall bstate fa2_token_id fa2_calls caddr_main (trace : ChainTrace empty_state bstate), 
+(* Axiom: the sum of mint/burn calls sent from the Minter to FA2 contract should
+    equal the sum of mint/burn calls received from the FA2 contract from the Minter.*)
+Axiom sent_to_minter_is_received : forall bstate fa2_token_id fa2_calls fa2_address state_fa2 caddr_main (trace : ChainTrace empty_state bstate),
+    env_contracts bstate fa2_address = Some (FA2_contract : WeakContract) ->
+    contract_state bstate fa2_address = Some (state_fa2 : MultiAssetStorage) ->
+    state_fa2.(fa2_admin).(tas_minter) = caddr_main ->
     sumZ (fun callInfo : ContractCallInfo MultiAssetParam => 
         FA2_Multi_Asset.mint_or_burn fa2_token_id (call_msg callInfo)) fa2_calls =
        sumZ (mint_or_burn_tx fa2_token_id)
-       (outgoing_txs trace (caddr_main)).
-
+       ((filter (fun tx => (tx.(tx_to) =? fa2_address)%address) (outgoing_txs trace caddr_main))).
 
 Lemma minter_fa2_synced_spec : forall bstate caddr_main erc20 fa2_address fa2_token_id total_supply metadata (trace : ChainTrace empty_state bstate),
     env_contracts bstate caddr_main = Some (minter_contract : WeakContract) ->
@@ -684,7 +688,7 @@ Lemma minter_fa2_synced_spec : forall bstate caddr_main erc20 fa2_address fa2_to
     filter (actTo fa2_address) (outgoing_acts bstate caddr_main) = [] ->
     FMap.find fa2_token_id state_fa2.(fa2_assets).(token_total_supply) = Some total_supply ->
     FMap.find fa2_token_id (mts_token_metadata (fa2_assets state_fa2)) = Some metadata ->
-    sumZ (mint_or_burn_tx fa2_token_id) (outgoing_txs trace caddr_main) = Z.of_N total_supply
+    sumZ (mint_or_burn_tx fa2_token_id) (filter (fun tx => (tx.(tx_to) =? fa2_address)%address) (outgoing_txs trace caddr_main)) = Z.of_N total_supply
     ).
 Proof.
     intros ? ? ? ? ? ? ? ? minter_deployed fa2_deployed.
@@ -705,7 +709,7 @@ Proof.
     setoid_rewrite E1.
     setoid_rewrite E2.
     intros.
-    rewrite <- (sent_to_minter_is_received _ _ fa2_calls _ _); try easy.
+    rewrite <- (sent_to_minter_is_received _ _ fa2_calls _ state_fa2 _); try easy.
 Qed.
 
 Print Assumptions minter_fa2_synced_spec.
