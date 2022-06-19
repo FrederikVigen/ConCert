@@ -618,35 +618,18 @@ Proof.
     reflexivity.
 Qed.
 
-Definition sum_tx (txs : list MintBurnTx) (id : token_id): Z :=
-    fold_right 
-    (fun (tx : MintBurnTx) (acc : Z) => 
-        (
-            if tx.(mint_burn_token_id) =? id
-            then (acc + (Z.of_N tx.(mint_burn_amount)))%Z
-            else acc%Z
-        )
-        )
-    0%Z txs.
-
-Definition mint_or_burn (msg : FA2_Multi_Asset.MultiAssetParam) (id : token_id) : Z :=
-    match msg with
-    | Tokens (param) =>
-        match param with 
-        | MintTokens mint_param => sum_tx mint_param id
-        | BurnTokens mint_param => (sum_tx mint_param id) * (-1)
+Fixpoint txs_to_mint_burn_txs (txs : list Tx) : list (option FA2_Multi_Asset.MultiAssetParam) :=
+    match txs with
+    | nil => nil
+    | tx :: l' =>
+        match tx.(tx_body) with
+        | tx_call (Some msg_serialized) =>
+        match @deserialize MultiAssetParam MultiAssetParam_serializable msg_serialized with
+        | Some msg =>  (Some msg) :: txs_to_mint_burn_txs l'
+        | _ => txs_to_mint_burn_txs l'
         end
-    | _ => 0
-    end.
-
-Definition mint_or_burn_tx (id : token_id) (tx : Tx) : Z :=
-    match tx.(tx_body) with
-    | tx_call (Some msg_serialized) =>
-    match @deserialize MultiAssetParam MultiAssetParam_serializable msg_serialized with
-    | Some msg => mint_or_burn msg id
-    | _ => 0
-    end
-    | _ => 0
+        | _ => txs_to_mint_burn_txs l'
+        end 
     end.
 
 Lemma minter_deployed_correctly : forall bstate caddr_main (trace : ChainTrace empty_state bstate),
@@ -673,8 +656,8 @@ Axiom sent_to_minter_is_received : forall bstate fa2_token_id fa2_calls fa2_addr
     state_fa2.(fa2_admin).(tas_minter) = caddr_main ->
     sumZ (fun callInfo : ContractCallInfo MultiAssetParam => 
         FA2_Multi_Asset.mint_or_burn fa2_token_id (call_msg callInfo)) fa2_calls =
-       sumZ (mint_or_burn_tx fa2_token_id)
-       ((filter (fun tx => (tx.(tx_to) =? fa2_address)%address) (outgoing_txs trace caddr_main))).
+        sumZ (FA2_Multi_Asset.mint_or_burn fa2_token_id) 
+        (txs_to_mint_burn_txs (filter (fun tx => (tx.(tx_to) =? fa2_address)%address) (outgoing_txs trace caddr_main))).
 
 Lemma minter_fa2_synced_spec : forall bstate caddr_main erc20 fa2_address fa2_token_id total_supply metadata (trace : ChainTrace empty_state bstate),
     env_contracts bstate caddr_main = Some (minter_contract : WeakContract) ->
@@ -688,8 +671,9 @@ Lemma minter_fa2_synced_spec : forall bstate caddr_main erc20 fa2_address fa2_to
     filter (actTo fa2_address) (outgoing_acts bstate caddr_main) = [] ->
     FMap.find fa2_token_id state_fa2.(fa2_assets).(token_total_supply) = Some total_supply ->
     FMap.find fa2_token_id (mts_token_metadata (fa2_assets state_fa2)) = Some metadata ->
-    sumZ (mint_or_burn_tx fa2_token_id) (filter (fun tx => (tx.(tx_to) =? fa2_address)%address) (outgoing_txs trace caddr_main)) = Z.of_N total_supply
-    ).
+    sumZ (FA2_Multi_Asset.mint_or_burn fa2_token_id) 
+        (txs_to_mint_burn_txs (filter (fun tx => (tx.(tx_to) =? fa2_address)%address) 
+        (outgoing_txs trace caddr_main))) = Z.of_N total_supply).
 Proof.
     intros ? ? ? ? ? ? ? ? minter_deployed fa2_deployed.
     apply (minter_deployed_correctly bstate caddr_main trace) in minter_deployed as minter.
